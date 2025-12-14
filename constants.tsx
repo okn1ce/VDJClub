@@ -20,7 +20,7 @@ export const DEFAULT_GAMES: Game[] = [
   {
     id: 'faction-wars',
     title: 'Faction Wars',
-    description: 'Join a faction (Cyber, Steampunk, or Nature) and battle for territory control on a global map.',
+    description: 'Join a faction (Les Gays, Les Halalistes, or Les Haramistes) and battle for territory control on a global map.',
     thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1000&auto=format&fit=crop',
     playerCount: 'MMO',
     category: 'Strategy',

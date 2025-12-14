@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ViewState, UserProfile, CosmeticItem, UpgradeType, BettingEvent, Bet, BettingOption, Game, KothState, CanvasPixels, VaultState, VaultHistoryEntry, CoreState, CorePlayer, CoreTurret, FactionId, Sector } from '../types';
+import { ViewState, UserProfile, CosmeticItem, UpgradeType, BettingEvent, Bet, BettingOption, Game, KothState, CanvasPixels, VaultState, VaultHistoryEntry, CoreState, CorePlayer, CoreTurret, FactionId, Sector, FactionWarState } from '../types';
 import { DEFAULT_CLICKER_UPGRADES, DEFAULT_GAMES, DEFAULT_SHOP_ITEMS, DEFAULT_CORE_TURRETS } from '../constants';
 import { db } from '../services/firebase';
 import { ref, onValue, set, update, remove, push, get, increment } from 'firebase/database';
@@ -58,8 +58,10 @@ interface GameContextType {
 
   // Faction Wars Data & Functions
   factionSectors: Sector[];
+  factionWarState: FactionWarState | null;
   joinFaction: (faction: FactionId) => boolean;
   interactWithSector: (sectorId: string, action: 'attack' | 'reinforce') => { success: boolean, message: string };
+  adminResetFactionMap: () => void;
 
   // Admin functions
   adminCreateUser: (username: string, password: string, credits?: number) => boolean;
@@ -110,6 +112,14 @@ const INITIAL_CORE_STATE: CoreState = {
     lastTick: Date.now()
 };
 
+// Helper to normalize faction IDs from legacy data
+const normalizeFactionId = (faction: string): FactionId | undefined => {
+    if (faction === 'gay' || faction === 'Les Gays') return 'gay';
+    if (faction === 'halal' || faction === 'Les Halalistes') return 'halal';
+    if (faction === 'haram' || faction === 'Les Haramistes') return 'haram';
+    return undefined;
+};
+
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [view, setView] = useState<ViewState>('HOME');
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -138,6 +148,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Faction Wars
   const [factionSectors, setFactionSectors] = useState<Sector[]>([]);
+  const [factionWarState, setFactionWarState] = useState<FactionWarState | null>(null);
 
   // 1. Initialize Listeners
   useEffect(() => {
@@ -146,13 +157,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubUsers = onValue(usersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const usersList = Object.values(data) as UserProfile[];
+        const rawUsers = Object.values(data) as any[];
+        // Sanitize users list
+        const usersList: UserProfile[] = rawUsers.map(u => ({
+            ...u,
+            faction: u.faction ? normalizeFactionId(u.faction) : undefined
+        }));
+        
         setAllUsers(usersList);
         
         // If we are logged in, update our local user state to match the DB
         setUser(prev => {
             if (prev) {
-                return usersList.find(u => u.username === prev.username) || prev;
+                const updated = usersList.find(u => u.username === prev.username);
+                return updated || prev;
             }
             return null;
         });
@@ -311,6 +329,26 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     });
 
+    // Listen to Faction War State (Timer, Pool)
+    const factionStateRef = ref(db, 'factions/state');
+    const unsubFactionState = onValue(factionStateRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            setFactionWarState(data);
+        } else {
+            // Seed Initial War (3 Days)
+            const now = Date.now();
+            const threeDays = 3 * 24 * 60 * 60 * 1000;
+            const initialState: FactionWarState = {
+                seasonId: 1,
+                startTime: now,
+                endTime: now + threeDays,
+                rewardPool: 50000
+            };
+            set(ref(db, 'factions/state'), initialState);
+        }
+    });
+
     return () => {
         unsubUsers();
         unsubGames();
@@ -324,6 +362,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unsubCoreState();
         unsubCorePlayers();
         unsubFactions();
+        unsubFactionState();
     };
   }, []);
 
@@ -345,6 +384,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!user || !kothState || !kothState.kingId || user.username !== kothState.kingId) return;
 
       const interval = setInterval(() => {
+          // Payout is 1% of Treasury
           const payout = Math.max(1, Math.floor(kothState.treasury * 0.01));
           
           if (payout > 0) {
@@ -352,7 +392,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
               // Use atomic increment so we don't depend on user.credits in dependency array (prevents timer reset)
               updates[`users/${user.username}/credits`] = increment(payout);
               updates[`users/${user.username}/stats/totalEarnings`] = increment(payout);
-              // NOTE: We do NOT deduct from treasury anymore. It acts as an index for payout.
+              // NOTE: We do NOT deduct from treasury. It continues to grow as people usurp.
+              // It acts as an index for payout amount.
               
               update(ref(db), updates);
           }
@@ -809,26 +850,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Calculate new state
       let newDefense = sector.defense;
-      let newOwner = sector.owner;
+      // Normalizing current owner: if undefined (missing from DB), treat as null
+      const currentOwner = sector.owner ? normalizeFactionId(sector.owner) || null : null;
+      const userFactionId = normalizeFactionId(user.faction) || user.faction;
+      
+      let newOwner = currentOwner;
       let newMax = sector.maxDefense;
 
       if (action === 'attack') {
           // If unowned or enemy
-          if (sector.owner === null) {
-               newOwner = user.faction;
+          if (currentOwner === null) {
+               newOwner = userFactionId;
                newDefense = 100; // Claim it
                newMax = 100;
-          } else if (sector.owner !== user.faction) {
+          } else if (currentOwner !== userFactionId) {
                newDefense = sector.defense - POWER;
                if (newDefense <= 0) {
-                   newOwner = user.faction;
+                   newOwner = userFactionId;
                    newDefense = 50; // Capture with some health
                    newMax = 100;
                }
           }
       } else {
           // Reinforce (Must own)
-          if (sector.owner === user.faction) {
+          if (currentOwner === userFactionId) {
               newDefense = sector.defense + POWER;
               if (newDefense > newMax) {
                   newMax = newDefense; // Increase max cap slightly on overflow
@@ -836,7 +881,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
       }
 
-      updates[`factions/map/${sectorId}/owner`] = newOwner;
+      // Ensure we don't pass undefined to firebase
+      updates[`factions/map/${sectorId}/owner`] = newOwner === undefined ? null : newOwner;
       updates[`factions/map/${sectorId}/defense`] = newDefense;
       updates[`factions/map/${sectorId}/maxDefense`] = newMax;
 
@@ -844,6 +890,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser({ ...user, credits: user.credits - COST });
 
       return { success: true, message: action === 'attack' ? "Attack launched!" : "Sector reinforced!" };
+  };
+
+  const adminResetFactionMap = () => {
+    remove(ref(db, 'factions/map'));
   };
 
   // --- Admin Actions ---
@@ -922,8 +972,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       adminResetCore,
       // Factions
       factionSectors,
+      factionWarState,
       joinFaction,
       interactWithSector,
+      adminResetFactionMap,
       // Admin
       adminCreateUser,
       adminUpdateUserBalance,

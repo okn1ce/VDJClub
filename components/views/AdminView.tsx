@@ -1,12 +1,12 @@
 
 import React, { useState, useRef } from 'react';
 import { useGame } from '../../contexts/GameContext';
-import { Shield, UserPlus, DollarSign, Search, Users, Gamepad2, Edit2, Save, X, Image as ImageIcon, ShoppingBag, Plus, Trash2, Upload } from 'lucide-react';
+import { Shield, UserPlus, DollarSign, Search, Users, Gamepad2, Edit2, Save, X, Image as ImageIcon, ShoppingBag, Plus, Trash2, Upload, AlertTriangle, RotateCcw } from 'lucide-react';
 import { Game, CosmeticItem } from '../../types';
 import { ICON_MAP } from '../../constants';
 
 const AdminView: React.FC = () => {
-  const { allUsers, adminCreateUser, adminUpdateUserBalance, games, adminUpdateGame, shopItems, adminAddShopItem, adminDeleteShopItem } = useGame();
+  const { allUsers, adminCreateUser, adminUpdateUserBalance, games, adminUpdateGame, shopItems, adminAddShopItem, adminDeleteShopItem, adminResetFactionMap } = useGame();
   
   // Create User State
   const [newUser, setNewUser] = useState({ username: '', password: '', credits: 250 });
@@ -17,6 +17,9 @@ const AdminView: React.FC = () => {
 
   // Game Edit State
   const [editingGame, setEditingGame] = useState<Game | null>(null);
+
+  // Reset Confirm State
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Shop Manager State
   const [newShopItem, setNewShopItem] = useState<Partial<CosmeticItem>>({
@@ -201,6 +204,47 @@ const AdminView: React.FC = () => {
           </div>
       )}
 
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+             <div className="bg-slate-900 border border-red-500/50 p-6 rounded-2xl max-w-sm w-full shadow-2xl animate-fade-in">
+                <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                    <AlertTriangle className="text-red-500" /> Reset Faction Map?
+                </h3>
+                <p className="text-slate-400 mb-6 text-sm">
+                    This will wipe all territory ownership and reset defense levels. This action cannot be undone.
+                </p>
+                <div className="flex gap-3 justify-end">
+                    <button onClick={() => setShowResetConfirm(false)} className="px-4 py-2 text-slate-400 hover:text-white transition-colors">Cancel</button>
+                    <button 
+                        onClick={() => {
+                            adminResetFactionMap();
+                            setShowResetConfirm(false);
+                        }} 
+                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold shadow-lg transition-colors"
+                    >
+                        Confirm Reset
+                    </button>
+                </div>
+             </div>
+        </div>
+      )}
+
+      {/* Danger Zone (Data Management) */}
+      <div className="bg-red-900/10 border border-red-900/30 rounded-2xl p-6">
+          <h2 className="text-xl font-bold text-red-400 flex items-center gap-2 mb-4">
+              <AlertTriangle /> Danger Zone
+          </h2>
+          <div className="flex gap-4">
+              <button 
+                onClick={() => setShowResetConfirm(true)}
+                className="px-4 py-2 bg-red-900/20 hover:bg-red-900/40 text-red-300 border border-red-500/30 rounded-lg flex items-center gap-2 transition-all"
+              >
+                  <RotateCcw size={16} /> Reset Faction Map Data
+              </button>
+          </div>
+      </div>
+
       {/* Shop Management */}
       <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
           <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-6">
@@ -381,7 +425,7 @@ const AdminView: React.FC = () => {
                           <div className="flex-1">
                               <div className="flex items-center gap-2">
                                   <span className="font-bold text-white">{item.name}</span>
-                                  <span className="text-[10px] uppercase bg-slate-800 px-2 py-0.5 rounded text-slate-400 border border-slate-700">{item.type}</span>
+                                  <span className="text-xs text-slate-400 uppercase tracking-wider bg-slate-800 px-2 py-0.5 rounded border border-slate-700">{item.type}</span>
                               </div>
                               <p className="text-xs text-slate-500">{item.description} • {item.cost} credits</p>
                           </div>

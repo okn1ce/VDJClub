@@ -38,22 +38,32 @@ const ContentArea: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-950 text-slate-200 font-sans selection:bg-indigo-500/30">
+    <div className="h-screen w-full bg-slate-950 text-slate-200 font-sans selection:bg-indigo-500/30 overflow-hidden relative">
+      {/* 
+        SIDEBAR: Fixed position, Width 20 (5rem/80px), Z-index 100 
+        Managed entirely within Sidebar.tsx but reserving space here conceptually.
+      */}
       <Sidebar />
-      <div className="flex-1 flex flex-col relative">
+
+      {/* 
+        MAIN CONTENT: Absolute positioned to the right of the sidebar.
+        This creates a hard boundary between navigation and content.
+      */}
+      <div className="absolute top-0 right-0 bottom-0 left-20 overflow-y-auto custom-scrollbar bg-slate-950">
           <CurrencyDisplay />
-          <main className="flex-1 h-screen overflow-y-auto bg-slate-950 relative">
-            {/* Background Grid Pattern */}
-            <div className="fixed inset-0 z-0 pointer-events-none" style={{
+          
+          <main className="relative min-h-full">
+            {/* Background Layers */}
+            <div className="fixed inset-0 z-0 pointer-events-none ml-20" style={{
                 backgroundImage: 'radial-gradient(circle at 1px 1px, #1e293b 1px, transparent 0)',
                 backgroundSize: '40px 40px',
                 opacity: 0.5
             }}></div>
             
-            {/* Ambient Glow */}
-            <div className="fixed top-0 left-0 w-full h-1/2 bg-indigo-900/10 blur-[120px] pointer-events-none z-0"></div>
+            <div className="fixed top-0 left-20 right-0 h-1/2 bg-indigo-900/10 blur-[120px] pointer-events-none z-0"></div>
 
-            <div className="relative z-10 pt-6">
+            {/* View Content */}
+            <div className="relative z-10 pt-6 pb-20">
               {renderView()}
             </div>
           </main>
@@ -70,7 +80,6 @@ const App: React.FC = () => {
   );
 };
 
-// Separate wrapper to access context
 const ContentWrapper: React.FC = () => {
   const { user } = useGame();
   

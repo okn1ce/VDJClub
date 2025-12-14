@@ -31,7 +31,7 @@ export interface UpgradeType {
   color: string;
 }
 
-export type FactionId = 'cyber' | 'steampunk' | 'nature';
+export type FactionId = 'gay' | 'halal' | 'haram';
 
 export interface UserProfile {
   username: string;
@@ -155,4 +155,11 @@ export interface Sector {
   owner: FactionId | null;
   defense: number;
   maxDefense: number;
+}
+
+export interface FactionWarState {
+  seasonId: number;
+  startTime: number;
+  endTime: number;
+  rewardPool: number;
 }

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ArrowLeft, Zap, Target, Crosshair, Users, Activity, Lock, TrendingUp, Coins, PieChart, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Zap, Target, Crosshair, Users, Activity, Lock, TrendingUp, Coins, PieChart, RotateCcw, AlertTriangle } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
 import { DEFAULT_CORE_TURRETS, ICON_MAP } from '../../constants';
 
@@ -8,6 +8,7 @@ const TheCore: React.FC = () => {
   const { setView, setActiveGameId, user, coreState, corePlayers, buyCoreTurret, adminResetCore } = useGame();
   
   const [notification, setNotification] = useState<string | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   if (!coreState) return <div className="text-white p-10">Initializing Core...</div>;
 
@@ -60,17 +61,39 @@ const TheCore: React.FC = () => {
             {/* Admin Reset Button */}
             {user?.role === 'admin' && (
                 <button 
-                    onClick={() => {
-                        if(confirm("Are you sure you want to reset the Core to Level 1? All progress will be lost.")) {
-                            adminResetCore();
-                        }
-                    }}
+                    onClick={() => setShowResetConfirm(true)}
                     className="bg-red-900/50 hover:bg-red-800 text-red-300 px-4 py-2 rounded-full backdrop-blur-md flex items-center gap-2 transition-all border border-red-500/30 ml-2"
                 >
                     <RotateCcw size={18} /> Reset Level 1
                 </button>
             )}
         </div>
+
+        {/* Reset Confirmation Modal */}
+        {showResetConfirm && (
+             <div className="absolute inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                  <div className="bg-slate-900 border border-red-500/50 p-6 rounded-2xl max-w-sm w-full shadow-2xl animate-fade-in">
+                     <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                         <AlertTriangle className="text-red-500" /> Reset Core?
+                     </h3>
+                     <p className="text-slate-400 mb-6 text-sm">
+                         Reset Core to Level 1? All player DPS and turrets will be wiped.
+                     </p>
+                     <div className="flex gap-3 justify-end">
+                         <button onClick={() => setShowResetConfirm(false)} className="px-4 py-2 text-slate-400 hover:text-white transition-colors">Cancel</button>
+                         <button 
+                             onClick={() => {
+                                 adminResetCore();
+                                 setShowResetConfirm(false);
+                             }} 
+                             className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold shadow-lg transition-colors"
+                         >
+                             Confirm Reset
+                         </button>
+                     </div>
+                  </div>
+             </div>
+        )}
 
         {/* Notifications */}
         {notification && (
