@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Trophy, Medal, Coins, User, Crown } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
@@ -33,7 +32,7 @@ const LeaderboardView: React.FC = () => {
                     <h1 className="text-3xl font-black text-white mb-2 flex items-center gap-3">
                         <Trophy className="text-yellow-500" size={32} /> Global Leaderboard
                     </h1>
-                    <p className="text-slate-400">The wealthiest tycoons in Nexus Arcade.</p>
+                    <p className="text-slate-400">The wealthiest tycoons in Vidio Di Jour Club.</p>
                 </div>
                 
                 {user && (
@@ -56,66 +55,69 @@ const LeaderboardView: React.FC = () => {
             </header>
 
             <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
-                <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-800 bg-slate-950/50 text-xs font-bold uppercase text-slate-500 tracking-wider">
-                    <div className="col-span-2 md:col-span-1 text-center">Rank</div>
-                    <div className="col-span-6 md:col-span-5">Player</div>
-                    <div className="col-span-4 md:col-span-3 text-right">Net Worth</div>
-                    <div className="hidden md:block col-span-3 text-right">Victories</div>
-                </div>
-
-                <div className="divide-y divide-slate-800/50 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                    {sortedUsers.map((u, index) => {
-                        const isMe = u.username === user?.username;
-                        return (
-                            <div 
-                                key={u.username}
-                                className={`grid grid-cols-12 gap-4 p-4 items-center transition-all duration-300
-                                    ${isMe ? 'bg-indigo-600/10 hover:bg-indigo-600/20 border-l-2 border-indigo-500' : 'hover:bg-slate-800/50 border-l-2 border-transparent'}
-                                `}
-                            >
-                                <div className="col-span-2 md:col-span-1 flex justify-center">
-                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border shadow-inner ${getRankStyle(index)}`}>
-                                        {getRankIcon(index)}
-                                    </div>
-                                </div>
-                                
-                                <div className="col-span-6 md:col-span-5 flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-lg bg-slate-800 overflow-hidden shrink-0 border border-slate-700 shadow-sm relative group">
-                                        {u.equipped.avatar ? (
-                                            <img src={u.equipped.avatar} alt={u.username} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-600"><User size={20} /></div>
-                                        )}
-                                        {index === 0 && <div className="absolute inset-0 border-2 border-yellow-500/50 rounded-lg"></div>}
-                                    </div>
-                                    <div className="overflow-hidden">
-                                        <div className={`font-bold truncate text-base flex items-center gap-2 ${isMe ? 'text-indigo-400' : 'text-white'}`}>
-                                            {u.username} 
-                                            {isMe && <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/20">YOU</span>}
-                                        </div>
-                                        <div className="text-xs text-slate-500 capitalize flex items-center gap-1">
-                                            {u.role}
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div className="col-span-4 md:col-span-3 text-right">
-                                    <div className="flex items-center justify-end gap-2 font-mono font-bold text-emerald-400 text-lg">
-                                        {u.credits.toLocaleString()} <Coins size={14} className="text-emerald-500" />
-                                    </div>
-                                </div>
-                                
-                                <div className="hidden md:block col-span-3 text-right">
-                                    <div className="font-mono text-slate-400 font-medium">
-                                        {u.stats.wins} Wins
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-950/50 border-b border-slate-800 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                <th className="p-4 w-24 text-center">Rank</th>
+                                <th className="p-4">Player</th>
+                                <th className="p-4">Wins</th>
+                                <th className="p-4 text-right">Net Worth</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sortedUsers.map((u, index) => {
+                                const isCurrentUser = user && u.username === user.username;
+                                return (
+                                    <tr 
+                                        key={u.username} 
+                                        className={`border-b border-slate-800/50 transition-colors ${isCurrentUser ? 'bg-indigo-900/10' : 'hover:bg-slate-800/30'}`}
+                                    >
+                                        <td className="p-4 text-center">
+                                            <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center border ${getRankStyle(index)}`}>
+                                                {getRankIcon(index)}
+                                            </div>
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden">
+                                                    {u.equipped.avatar ? (
+                                                        <img src={u.equipped.avatar} alt={u.username} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <User size={20} className="text-slate-500" />
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <div className={`font-bold ${isCurrentUser ? 'text-indigo-400' : 'text-white'}`}>
+                                                        {u.username}
+                                                    </div>
+                                                    <div className="text-xs text-slate-500 flex items-center gap-1">
+                                                        <span className="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">{u.role}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-4 font-mono text-slate-300">
+                                            {u.stats.wins}
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            <div className="flex items-center justify-end gap-2 text-emerald-400 font-mono font-bold">
+                                                {u.credits.toLocaleString()}
+                                                <Coins size={16} />
+                                            </div>
+                                            <div className="text-xs text-slate-500">
+                                                Lifetime: {u.stats.totalEarnings.toLocaleString()}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     );
 };
+
 export default LeaderboardView;

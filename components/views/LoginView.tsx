@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Gamepad2, Lock, User, ArrowRight } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
@@ -28,7 +29,7 @@ const LoginView: React.FC = () => {
           <div className="inline-flex p-4 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl shadow-2xl shadow-indigo-500/30 mb-6">
             <Gamepad2 size={40} className="text-white" />
           </div>
-          <h1 className="text-4xl font-black text-white mb-2 tracking-tight">Nexus Arcade</h1>
+          <h1 className="text-4xl font-black text-white mb-2 tracking-tight">Vidio Di Jour Club</h1>
           <p className="text-slate-400">Enter the hub to play & compete.</p>
         </div>
 
@@ -74,10 +75,6 @@ const LoginView: React.FC = () => {
             Enter Hub <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
           </button>
         </form>
-
-        <p className="text-center text-slate-500 text-sm mt-8">
-           Admin Access: <span className="text-slate-400 font-mono">admin / 1234</span>
-        </p>
       </div>
     </div>
   );
