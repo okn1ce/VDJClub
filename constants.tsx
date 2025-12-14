@@ -3,7 +3,7 @@ import { CosmeticItem, Game, UpgradeType, CoreTurret } from "./types";
 import { 
   User, Shield, Zap, Crown, Ghost, Sword, Skull, Star, Heart, 
   MousePointer2, Factory, TrendingUp, Users, Clock, Coins, Beer, Grid3X3, Castle, Palette,
-  ShoppingBag, Tag, Image as ImageIcon, Lock, Key, Crosshair, Target, Cpu, Radio
+  ShoppingBag, Tag, Image as ImageIcon, Lock, Key, Crosshair, Target, Cpu, Radio, Bitcoin, Briefcase
 } from "lucide-react";
 
 export const DEFAULT_GAMES: Game[] = [
@@ -44,15 +44,6 @@ export const DEFAULT_GAMES: Game[] = [
     difficulty: 'Medium'
   },
   {
-    id: 'the-glitch',
-    title: 'The Glitch',
-    description: 'Multiplayer Survival. Memorize safe zones, move before the grid corrupts. Last one standing takes the pot.',
-    thumbnail: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop',
-    playerCount: '2+',
-    category: 'Arcade',
-    difficulty: 'Hard'
-  },
-  {
     id: 'king-of-the-hill',
     title: 'King of the Hill',
     description: 'Seize the throne and drain the treasury. Pay more than the current king to usurp them. The longer you sit, the more you earn.',
@@ -69,72 +60,34 @@ export const DEFAULT_GAMES: Game[] = [
     playerCount: 'MMO',
     category: 'Creative',
     difficulty: 'Easy'
-  },
-  // --- New Ideas ---
-  {
-    id: 'neon-crash',
-    title: 'Neon Crash',
-    description: 'The multiplier rises indefinitely... until it crashes. Cash out your bet before it breaks to win big.',
-    thumbnail: 'https://images.unsplash.com/photo-1555680202-c86f0e12f086?q=80&w=1000&auto=format&fit=crop',
-    playerCount: 'MMO',
-    category: 'Chance',
-    difficulty: 'Hard'
-  },
-  {
-    id: 'cyber-blackjack',
-    title: 'Cyber Blackjack',
-    description: 'Classic 21 against a ruthless AI dealer. High stakes, holographic cards, and massive rewards.',
-    thumbnail: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=1000&auto=format&fit=crop',
-    playerCount: '1',
-    category: 'Chance',
-    difficulty: 'Medium'
-  },
-  {
-    id: 'drone-defense',
-    title: 'Drone Defense',
-    description: 'Tower defense. Deploy automated drones to protect the Nexus server from waves of viruses.',
-    thumbnail: 'https://images.unsplash.com/photo-1473968512647-3e447244af8f?q=80&w=1000&auto=format&fit=crop',
-    playerCount: '1',
-    category: 'Strategy',
-    difficulty: 'Medium'
-  },
-  {
-    id: 'binary-rain',
-    title: 'Binary Rain',
-    description: 'Type the falling code snippets before they breach the firewall. A test of typing speed and accuracy.',
-    thumbnail: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=1000&auto=format&fit=crop',
-    playerCount: '1',
-    category: 'Arcade',
-    difficulty: 'Hard'
-  },
-  {
-    id: 'quantum-slots',
-    title: 'Quantum Slots',
-    description: 'Spin the reels of reality. Match symbols across 5 lines for massive payouts.',
-    thumbnail: 'https://images.unsplash.com/photo-1596838132731-3301c3fd4317?q=80&w=1000&auto=format&fit=crop',
-    playerCount: '1',
-    category: 'Chance',
-    difficulty: 'Easy'
-  },
-  {
-    id: 'memory-matrix',
-    title: 'Memory Matrix',
-    description: 'Memorize the pattern of flashing nodes. The sequence gets longer with every success.',
-    thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1000&auto=format&fit=crop',
-    playerCount: '1',
-    category: 'Puzzle',
-    difficulty: 'Medium'
-  },
-  {
-    id: 'syntax-sniper',
-    title: 'Syntax Sniper',
-    description: '1v1 Reaction test. Wait for the signal... SHOOT. Winner takes the bet.',
-    thumbnail: 'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=1000&auto=format&fit=crop',
-    playerCount: '2',
-    category: 'Arcade',
-    difficulty: 'Hard'
-  },
-  {
-    id: 'pixel-tycoon',
-    title: 'Pixel Tycoon',
-    description: 'Buy low, sell high. Trade virtual assets in a fluctuating market simulation
+  }
+];
+
+export const DEFAULT_SHOP_ITEMS: CosmeticItem[] = [
+  { id: 'ti_1', name: 'Novice', description: 'Just getting started.', type: 'title', cost: 0, icon: 'User', color: 'text-slate-400' },
+  { id: 'ti_2', name: 'High Roller', description: 'For those with deep pockets.', type: 'title', cost: 500, icon: 'Coins', color: 'text-emerald-400' },
+  { id: 'ba_1', name: 'Slate Basic', description: 'Clean and simple.', type: 'banner', cost: 0, icon: 'Shield', color: 'bg-slate-700' },
+  { id: 'ba_2', name: 'Royal Velvet', description: 'Luxurious purple.', type: 'banner', cost: 750, icon: 'Crown', color: 'bg-purple-900' },
+  { id: 'ba_3', name: 'Cyber Grid', description: 'Digital aesthetic.', type: 'banner', cost: 1200, icon: 'Grid3X3', color: 'bg-indigo-900' },
+];
+
+export const DEFAULT_CLICKER_UPGRADES: UpgradeType[] = [
+  { id: 'up_1', name: 'Cursor Upgrade', type: 'click', baseCost: 15, basePower: 1, icon: 'MousePointer2', color: 'bg-blue-500' },
+  { id: 'up_2', name: 'Auto Clicker', type: 'auto', baseCost: 100, basePower: 5, icon: 'Clock', color: 'bg-emerald-500' },
+  { id: 'up_3', name: 'Click Farm', type: 'auto', baseCost: 1000, basePower: 50, icon: 'Factory', color: 'bg-orange-500' },
+  { id: 'up_4', name: 'AI Manager', type: 'auto', baseCost: 5000, basePower: 200, icon: 'Cpu', color: 'bg-pink-500' },
+];
+
+export const DEFAULT_CORE_TURRETS: CoreTurret[] = [
+    { id: 'tur_1', name: 'Pea Shooter', cost: 100, dps: 5, icon: 'Crosshair', color: 'text-slate-400' },
+    { id: 'tur_2', name: 'Blaster', cost: 500, dps: 30, icon: 'Target', color: 'text-blue-400' },
+    { id: 'tur_3', name: 'Laser Beam', cost: 2500, dps: 150, icon: 'Zap', color: 'text-yellow-400' },
+    { id: 'tur_4', name: 'Plasma Cannon', cost: 10000, dps: 800, icon: 'Cpu', color: 'text-purple-400' },
+];
+
+export const ICON_MAP: Record<string, any> = {
+  User, Shield, Zap, Crown, Ghost, Sword, Skull, Star, Heart, 
+  MousePointer2, Factory, TrendingUp, Users, Clock, Coins, Beer, 
+  Grid3X3, Castle, Palette, ShoppingBag, Tag, ImageIcon, Lock, Key,
+  Crosshair, Target, Cpu, Radio, Bitcoin, Briefcase
+};

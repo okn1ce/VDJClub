@@ -83,26 +83,6 @@ export interface Bet {
   timestamp: number;
 }
 
-// --- The Glitch Types ---
-export interface GlitchPlayer {
-  userId: string;
-  username: string;
-  avatar: string;
-  x: number; // 0-4
-  y: number; // 0-4
-  status: 'ALIVE' | 'DEAD' | 'WINNER';
-}
-
-export interface GlitchState {
-  status: 'LOBBY' | 'PLAYING' | 'ENDED';
-  phase: 'MEMORIZE' | 'MOVE' | 'ELIMINATE';
-  round: number;
-  safeTiles: number[]; // Indices 0-24
-  endTime: number; // Timestamp for next phase
-  pot: number;
-  difficultySpeed: number; // Duration of move phase in ms
-}
-
 // --- King of the Hill Types ---
 export interface KothState {
   kingId: string | null;

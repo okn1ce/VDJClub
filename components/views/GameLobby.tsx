@@ -3,7 +3,6 @@ import React from 'react';
 import { useGame } from '../../contexts/GameContext';
 import AbdouClicker from '../games/AbdouClicker';
 import BarPMU from '../games/BarPMU';
-import TheGlitch from '../games/TheGlitch';
 import KingOfTheHill from '../games/KingOfTheHill';
 import CanvasClash from '../games/CanvasClash';
 import TheVault from '../games/TheVault';
@@ -18,10 +17,6 @@ const GameLobby: React.FC = () => {
   
   if (activeGameId === 'le-bar-pmu') {
       return <BarPMU />;
-  }
-
-  if (activeGameId === 'the-glitch') {
-      return <TheGlitch />;
   }
 
   if (activeGameId === 'king-of-the-hill') {

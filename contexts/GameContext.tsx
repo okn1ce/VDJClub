@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ViewState, UserProfile, CosmeticItem, UpgradeType, BettingEvent, Bet, BettingOption, GlitchState, GlitchPlayer, Game, KothState, CanvasPixels, VaultState, VaultHistoryEntry, CoreState, CorePlayer, CoreTurret } from '../types';
+import { ViewState, UserProfile, CosmeticItem, UpgradeType, BettingEvent, Bet, BettingOption, Game, KothState, CanvasPixels, VaultState, VaultHistoryEntry, CoreState, CorePlayer, CoreTurret } from '../types';
 import { DEFAULT_CLICKER_UPGRADES, DEFAULT_GAMES, DEFAULT_SHOP_ITEMS, DEFAULT_CORE_TURRETS } from '../constants';
 import { db } from '../services/firebase';
 import { ref, onValue, set, update, remove, push, get } from 'firebase/database';
@@ -37,16 +37,6 @@ interface GameContextType {
   createBettingEvent: (question: string, options: string[]) => void;
   placeBet: (eventId: string, optionId: string, amount: number) => boolean;
   resolveBettingEvent: (eventId: string, winnerOptionId: string) => void;
-
-  // The Glitch Data & Functions
-  glitchState: GlitchState | null;
-  glitchPlayers: GlitchPlayer[];
-  joinGlitchGame: () => boolean;
-  leaveGlitchGame: () => void;
-  moveGlitchPlayer: (x: number, y: number) => void;
-  adminUpdateGlitchState: (state: Partial<GlitchState>) => void;
-  adminUpdateGlitchPlayer: (userId: string, updates: Partial<GlitchPlayer>) => void;
-  adminResetGlitch: () => void;
   
   // King of the Hill Data & Functions
   kothState: KothState | null;
@@ -83,23 +73,13 @@ const INITIAL_ADMIN: UserProfile = {
   password: "1234",
   role: 'admin',
   credits: 99999,
-  inventory: ['ti_1', 'ti_2', 'ti_3', 'ba_1', 'ba_2', 'ba_3'],
+  inventory: ['ti_1', 'ti_2', 'ba_1', 'ba_2', 'ba_3'],
   equipped: {
     avatar: '',
     banner: 'ba_3',
-    title: 'ti_3'
+    title: 'ti_2'
   },
   stats: { gamesPlayed: 0, wins: 0, totalEarnings: 0 }
-};
-
-const INITIAL_GLITCH_STATE: GlitchState = {
-    status: 'LOBBY',
-    phase: 'MEMORIZE',
-    round: 1,
-    safeTiles: [],
-    endTime: 0,
-    pot: 0,
-    difficultySpeed: 4000
 };
 
 const INITIAL_KOTH_STATE: KothState = {
@@ -137,10 +117,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [clickerUpgrades, setClickerUpgrades] = useState<UpgradeType[]>(DEFAULT_CLICKER_UPGRADES);
   const [bettingEvents, setBettingEvents] = useState<BettingEvent[]>([]);
   const [bets, setBets] = useState<Bet[]>([]);
-  
-  // Glitch
-  const [glitchState, setGlitchState] = useState<GlitchState | null>(null);
-  const [glitchPlayers, setGlitchPlayers] = useState<GlitchPlayer[]>([]);
 
   // KOTH
   const [kothState, setKothState] = useState<KothState | null>(null);
@@ -192,6 +168,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     update(ref(db, `games/${defGame.id}`), defGame);
                 }
             });
+
+            // CLEANUP: Remove games not in DEFAULT_GAMES (Placeholders removal)
+            const defaultIds = DEFAULT_GAMES.map(g => g.id);
+            dbGames.forEach(g => {
+                if (!defaultIds.includes(g.id)) {
+                    remove(ref(db, `games/${g.id}`));
+                }
+            });
         } else {
             // Seed defaults if totally empty
             const updates: Record<string, Game> = {};
@@ -240,22 +224,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubBets = onValue(betsRef, (snapshot) => {
         const data = snapshot.val();
         setBets(data ? Object.values(data) : []);
-    });
-
-    // Listen to Glitch Game
-    const glitchStateRef = ref(db, 'glitch/state');
-    const unsubGlitchState = onValue(glitchStateRef, (snapshot) => {
-        const data = snapshot.val();
-        setGlitchState(data || INITIAL_GLITCH_STATE);
-        if(!data) {
-             set(ref(db, 'glitch/state'), INITIAL_GLITCH_STATE);
-        }
-    });
-
-    const glitchPlayersRef = ref(db, 'glitch/players');
-    const unsubGlitchPlayers = onValue(glitchPlayersRef, (snapshot) => {
-        const data = snapshot.val();
-        setGlitchPlayers(data ? Object.values(data) : []);
     });
 
     // Listen to KOTH
@@ -317,8 +285,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unsubUpgrades();
         unsubEvents();
         unsubBets();
-        unsubGlitchState();
-        unsubGlitchPlayers();
         unsubKoth();
         unsubCanvas();
         unsubVault();
@@ -591,56 +557,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
   };
 
-  // --- The Glitch Actions ---
-
-  const joinGlitchGame = (): boolean => {
-      if (!user) return false;
-      const ENTRY_FEE = 50;
-      if (glitchPlayers.some(p => p.userId === user.username)) return true;
-      if (user.credits < ENTRY_FEE) return false;
-
-      const updatedUser = { ...user, credits: user.credits - ENTRY_FEE };
-      updateUserInDb(updatedUser);
-
-      const newPlayer: GlitchPlayer = {
-          userId: user.username,
-          username: user.username,
-          avatar: user.equipped.avatar || '',
-          x: Math.floor(Math.random() * 5),
-          y: Math.floor(Math.random() * 5),
-          status: 'ALIVE'
-      };
-      set(ref(db, `glitch/players/${user.username}`), newPlayer);
-      
-      const currentPot = glitchState?.pot || 0;
-      update(ref(db, 'glitch/state'), { pot: currentPot + ENTRY_FEE });
-      
-      return true;
-  };
-
-  const leaveGlitchGame = () => {
-      if (!user) return;
-      remove(ref(db, `glitch/players/${user.username}`));
-  };
-
-  const moveGlitchPlayer = (x: number, y: number) => {
-      if (!user) return;
-      update(ref(db, `glitch/players/${user.username}`), { x, y });
-  };
-
-  const adminUpdateGlitchState = (newState: Partial<GlitchState>) => {
-      update(ref(db, 'glitch/state'), newState);
-  };
-
-  const adminUpdateGlitchPlayer = (userId: string, updates: Partial<GlitchPlayer>) => {
-      update(ref(db, `glitch/players/${userId}`), updates);
-  };
-
-  const adminResetGlitch = () => {
-      set(ref(db, 'glitch/state'), INITIAL_GLITCH_STATE);
-      remove(ref(db, 'glitch/players'));
-  };
-
   // --- King of the Hill Actions ---
 
   const usurpThrone = (): boolean => {
@@ -889,15 +805,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createBettingEvent,
       placeBet,
       resolveBettingEvent,
-      // Glitch
-      glitchState,
-      glitchPlayers,
-      joinGlitchGame,
-      leaveGlitchGame,
-      moveGlitchPlayer,
-      adminUpdateGlitchState,
-      adminUpdateGlitchPlayer,
-      adminResetGlitch,
       // KOTH
       kothState,
       usurpThrone,
