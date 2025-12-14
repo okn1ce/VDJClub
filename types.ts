@@ -31,11 +31,14 @@ export interface UpgradeType {
   color: string;
 }
 
+export type FactionId = 'cyber' | 'steampunk' | 'nature';
+
 export interface UserProfile {
   username: string;
   password?: string; // Optional because we might not want to expose it in UI often, but used for auth
   role: UserRole;
   credits: number;
+  faction?: FactionId; // New field for Faction Wars
   inventory: string[]; // Array of CosmeticItem IDs
   equipped: {
     avatar: string;
@@ -142,4 +145,14 @@ export interface CoreState {
   maxHp: number;
   status: 'ALIVE' | 'DEAD';
   lastTick: number;
+}
+
+// --- Faction Wars Types ---
+export interface Sector {
+  id: string; // "x_y"
+  x: number;
+  y: number;
+  owner: FactionId | null;
+  defense: number;
+  maxDefense: number;
 }

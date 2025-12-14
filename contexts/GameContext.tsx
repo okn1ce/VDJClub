@@ -1,9 +1,9 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ViewState, UserProfile, CosmeticItem, UpgradeType, BettingEvent, Bet, BettingOption, Game, KothState, CanvasPixels, VaultState, VaultHistoryEntry, CoreState, CorePlayer, CoreTurret } from '../types';
+import { ViewState, UserProfile, CosmeticItem, UpgradeType, BettingEvent, Bet, BettingOption, Game, KothState, CanvasPixels, VaultState, VaultHistoryEntry, CoreState, CorePlayer, CoreTurret, FactionId, Sector } from '../types';
 import { DEFAULT_CLICKER_UPGRADES, DEFAULT_GAMES, DEFAULT_SHOP_ITEMS, DEFAULT_CORE_TURRETS } from '../constants';
 import { db } from '../services/firebase';
-import { ref, onValue, set, update, remove, push, get } from 'firebase/database';
+import { ref, onValue, set, update, remove, push, get, increment } from 'firebase/database';
 
 interface GameContextType {
   view: ViewState;
@@ -55,6 +55,11 @@ interface GameContextType {
   corePlayers: CorePlayer[];
   buyCoreTurret: (turret: CoreTurret) => boolean;
   adminResetCore: () => void;
+
+  // Faction Wars Data & Functions
+  factionSectors: Sector[];
+  joinFaction: (faction: FactionId) => boolean;
+  interactWithSector: (sectorId: string, action: 'attack' | 'reinforce') => { success: boolean, message: string };
 
   // Admin functions
   adminCreateUser: (username: string, password: string, credits?: number) => boolean;
@@ -130,6 +135,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Core
   const [coreState, setCoreState] = useState<CoreState | null>(null);
   const [corePlayers, setCorePlayers] = useState<CorePlayer[]>([]);
+
+  // Faction Wars
+  const [factionSectors, setFactionSectors] = useState<Sector[]>([]);
 
   // 1. Initialize Listeners
   useEffect(() => {
@@ -278,6 +286,31 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCorePlayers(data ? Object.values(data) : []);
     });
 
+    // Listen to Faction Wars Sectors
+    const factionsRef = ref(db, 'factions/map');
+    const unsubFactions = onValue(factionsRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            setFactionSectors(Object.values(data));
+        } else {
+            // Seed 6x6 Map
+            const initialSectors: Record<string, Sector> = {};
+            for (let x = 0; x < 6; x++) {
+                for (let y = 0; y < 6; y++) {
+                    const id = `${x}_${y}`;
+                    initialSectors[id] = {
+                        id,
+                        x, y,
+                        owner: null,
+                        defense: 100,
+                        maxDefense: 100
+                    };
+                }
+            }
+            set(ref(db, 'factions/map'), initialSectors);
+        }
+    });
+
     return () => {
         unsubUsers();
         unsubGames();
@@ -290,6 +323,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unsubVault();
         unsubCoreState();
         unsubCorePlayers();
+        unsubFactions();
     };
   }, []);
 
@@ -302,27 +336,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [allUsers]); // Re-run when users are loaded
 
-  // 3. KOTH Admin Loop (Host Logic)
+  // 3. KOTH Loop (Host Logic - driven by the King)
   useEffect(() => {
-      if (!user || user.role !== 'admin' || !kothState || !kothState.kingId) return;
+      // Logic runs if:
+      // 1. User is logged in
+      // 2. Koth state exists and has a king
+      // 3. The current user IS the King
+      if (!user || !kothState || !kothState.kingId || user.username !== kothState.kingId) return;
 
       const interval = setInterval(() => {
           const payout = Math.max(1, Math.floor(kothState.treasury * 0.01));
           
-          if (kothState.treasury > payout) {
-              const kingUser = allUsers.find(u => u.username === kothState.kingId);
-              if (kingUser) {
-                  const updates: Record<string, any> = {};
-                  updates[`users/${kingUser.username}/credits`] = kingUser.credits + payout;
-                  updates[`users/${kingUser.username}/stats/totalEarnings`] = kingUser.stats.totalEarnings + payout;
-                  updates[`koth/treasury`] = kothState.treasury - payout;
-                  update(ref(db), updates);
-              }
+          if (payout > 0) {
+              const updates: Record<string, any> = {};
+              // Use atomic increment so we don't depend on user.credits in dependency array (prevents timer reset)
+              updates[`users/${user.username}/credits`] = increment(payout);
+              updates[`users/${user.username}/stats/totalEarnings`] = increment(payout);
+              // NOTE: We do NOT deduct from treasury anymore. It acts as an index for payout.
+              
+              update(ref(db), updates);
           }
       }, 3000);
 
       return () => clearInterval(interval);
-  }, [user?.role, kothState?.kingId, kothState?.treasury, allUsers]);
+  }, [user?.username, kothState?.kingId, kothState?.treasury]);
 
 
   // 4. The Core Admin Loop (Host Logic)
@@ -745,6 +782,70 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       set(ref(db, 'core/players'), {});
   };
 
+  // --- Faction Wars Actions ---
+  const joinFaction = (faction: FactionId): boolean => {
+      if (!user || user.faction) return false;
+
+      const updates: Record<string, any> = {};
+      updates[`users/${user.username}/faction`] = faction;
+      
+      update(ref(db), updates);
+      setUser({ ...user, faction });
+      return true;
+  };
+
+  const interactWithSector = (sectorId: string, action: 'attack' | 'reinforce'): { success: boolean, message: string } => {
+      if (!user || !user.faction) return { success: false, message: "No faction" };
+      const COST = 25;
+      const POWER = 25;
+
+      if (user.credits < COST) return { success: false, message: "Not enough credits" };
+
+      const sector = factionSectors.find(s => s.id === sectorId);
+      if (!sector) return { success: false, message: "Invalid sector" };
+
+      const updates: Record<string, any> = {};
+      updates[`users/${user.username}/credits`] = user.credits - COST;
+      
+      // Calculate new state
+      let newDefense = sector.defense;
+      let newOwner = sector.owner;
+      let newMax = sector.maxDefense;
+
+      if (action === 'attack') {
+          // If unowned or enemy
+          if (sector.owner === null) {
+               newOwner = user.faction;
+               newDefense = 100; // Claim it
+               newMax = 100;
+          } else if (sector.owner !== user.faction) {
+               newDefense = sector.defense - POWER;
+               if (newDefense <= 0) {
+                   newOwner = user.faction;
+                   newDefense = 50; // Capture with some health
+                   newMax = 100;
+               }
+          }
+      } else {
+          // Reinforce (Must own)
+          if (sector.owner === user.faction) {
+              newDefense = sector.defense + POWER;
+              if (newDefense > newMax) {
+                  newMax = newDefense; // Increase max cap slightly on overflow
+              }
+          }
+      }
+
+      updates[`factions/map/${sectorId}/owner`] = newOwner;
+      updates[`factions/map/${sectorId}/defense`] = newDefense;
+      updates[`factions/map/${sectorId}/maxDefense`] = newMax;
+
+      update(ref(db), updates);
+      setUser({ ...user, credits: user.credits - COST });
+
+      return { success: true, message: action === 'attack' ? "Attack launched!" : "Sector reinforced!" };
+  };
+
   // --- Admin Actions ---
 
   const adminCreateUser = (username: string, password: string, credits: number = 250): boolean => {
@@ -819,6 +920,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       corePlayers,
       buyCoreTurret,
       adminResetCore,
+      // Factions
+      factionSectors,
+      joinFaction,
+      interactWithSector,
       // Admin
       adminCreateUser,
       adminUpdateUserBalance,

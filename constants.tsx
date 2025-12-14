@@ -3,7 +3,8 @@ import { CosmeticItem, Game, UpgradeType, CoreTurret } from "./types";
 import { 
   User, Shield, Zap, Crown, Ghost, Sword, Skull, Star, Heart, 
   MousePointer2, Factory, TrendingUp, Users, Clock, Coins, Beer, Grid3X3, Castle, Palette,
-  ShoppingBag, Tag, Image as ImageIcon, Lock, Key, Crosshair, Target, Cpu, Radio, Bitcoin, Briefcase
+  ShoppingBag, Tag, Image as ImageIcon, Lock, Key, Crosshair, Target, Cpu, Radio, Bitcoin, Briefcase,
+  Leaf, Cog, Hexagon
 } from "lucide-react";
 
 export const DEFAULT_GAMES: Game[] = [
@@ -15,6 +16,15 @@ export const DEFAULT_GAMES: Game[] = [
     playerCount: '1',
     category: 'Strategy',
     difficulty: 'Easy'
+  },
+  {
+    id: 'faction-wars',
+    title: 'Faction Wars',
+    description: 'Join a faction (Cyber, Steampunk, or Nature) and battle for territory control on a global map.',
+    thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1000&auto=format&fit=crop',
+    playerCount: 'MMO',
+    category: 'Strategy',
+    difficulty: 'Medium'
   },
   {
     id: 'the-core',
@@ -89,5 +99,5 @@ export const ICON_MAP: Record<string, any> = {
   User, Shield, Zap, Crown, Ghost, Sword, Skull, Star, Heart, 
   MousePointer2, Factory, TrendingUp, Users, Clock, Coins, Beer, 
   Grid3X3, Castle, Palette, ShoppingBag, Tag, ImageIcon, Lock, Key,
-  Crosshair, Target, Cpu, Radio, Bitcoin, Briefcase
+  Crosshair, Target, Cpu, Radio, Bitcoin, Briefcase, Leaf, Cog, Hexagon
 };

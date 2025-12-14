@@ -5,11 +5,17 @@ import { useGame } from '../contexts/GameContext';
 import { ViewState } from '../types';
 
 const Sidebar: React.FC = () => {
-  const { view, setView, user, logout } = useGame();
+  const { view, setView, user, logout, setActiveGameId } = useGame();
+
+  const handleNavigation = (target: ViewState) => {
+      setView(target);
+      // Ensures we leave any game lobby when switching tabs
+      setActiveGameId(null);
+  };
 
   const NavItem = ({ target, icon: Icon, label }: { target: ViewState; icon: any; label: string }) => (
     <button
-      onClick={() => setView(target)}
+      onClick={() => handleNavigation(target)}
       className={`group flex flex-col items-center justify-center p-4 w-full transition-all duration-200 
         ${view === target 
           ? 'text-emerald-400 bg-slate-800/50 border-r-4 border-emerald-400' 
@@ -21,7 +27,7 @@ const Sidebar: React.FC = () => {
   );
 
   return (
-    <div className="w-24 h-screen bg-slate-900 border-r border-slate-800 flex flex-col items-center py-6 shadow-xl z-20 sticky top-0">
+    <div className="w-24 h-screen bg-slate-900 border-r border-slate-800 flex flex-col items-center py-6 shadow-xl z-[100] sticky top-0">
       <div className="mb-8 p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-500/20">
         <Gamepad2 size={32} className="text-white" />
       </div>

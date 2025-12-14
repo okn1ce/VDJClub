@@ -7,6 +7,7 @@ import KingOfTheHill from '../games/KingOfTheHill';
 import CanvasClash from '../games/CanvasClash';
 import TheVault from '../games/TheVault';
 import TheCore from '../games/TheCore';
+import FactionWars from '../games/FactionWars';
 
 const GameLobby: React.FC = () => {
   const { activeGameId } = useGame();
@@ -33,6 +34,10 @@ const GameLobby: React.FC = () => {
 
   if (activeGameId === 'the-core') {
       return <TheCore />;
+  }
+
+  if (activeGameId === 'faction-wars') {
+      return <FactionWars />;
   }
 
   return (
