@@ -17,9 +17,9 @@ const KingOfTheHill: React.FC = () => {
     
     // Reset if king changes
     const timeReign = (Date.now() - kothState.kingSince) / 1000;
-    // Rough estimate of earnings for UI (1% of treasury per 3s)
-    const estimatedTicks = Math.floor(timeReign / 3);
-    const estimatedEarned = estimatedTicks * Math.floor(kothState.treasury * 0.01);
+    // Rough estimate of earnings for UI (0.5% of treasury per 30s)
+    const estimatedTicks = Math.floor(timeReign / 30);
+    const estimatedEarned = estimatedTicks * Math.floor(kothState.treasury * 0.005);
     setEarnings(estimatedEarned);
 
   }, [kothState?.kingId, kothState?.kingSince, kothState?.treasury]);
@@ -138,7 +138,7 @@ const KingOfTheHill: React.FC = () => {
                 {isKing ? (
                     <div className="text-center p-6 bg-indigo-900/20 border border-indigo-500/50 rounded-2xl">
                         <p className="text-indigo-200 text-lg font-bold mb-2">You control the throne!</p>
-                        <p className="text-slate-400 text-sm">Defend your title. You earn <span className="text-white font-bold">1%</span> of the treasury every 3 seconds.</p>
+                        <p className="text-slate-400 text-sm">Defend your title. You earn <span className="text-white font-bold">0.5%</span> of the treasury every 30 seconds.</p>
                     </div>
                 ) : (
                     <button 

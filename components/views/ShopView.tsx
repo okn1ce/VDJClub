@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Skull, Music, Palette } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
-import { ICON_MAP } from '../../constants';
+import { ICON_MAP, RGB_NAME_COST } from '../../constants';
 import { CosmeticItem } from '../../types';
 
 const ShopCard: React.FC<{ item: CosmeticItem }> = ({ item }) => {
@@ -103,15 +103,29 @@ const ShopCard: React.FC<{ item: CosmeticItem }> = ({ item }) => {
 };
 
 const ShopView: React.FC = () => {
-  const { shopItems } = useGame();
-  const [filter, setFilter] = useState<'all' | 'title' | 'banner'>('all');
+  const { shopItems, user, buyRainbowName } = useGame();
+  const [filter, setFilter] = useState<'all' | 'title' | 'banner' | 'black-market'>('all');
+  const [notification, setNotification] = useState<string | null>(null);
 
-  const filteredItems = filter === 'all' 
+  const filteredItems = filter === 'all' || filter === 'black-market'
     ? shopItems 
     : shopItems.filter(item => item.type === filter);
 
+  const handleBuyRainbow = () => {
+      const res = buyRainbowName();
+      setNotification(res.message);
+      setTimeout(() => setNotification(null), 3000);
+  };
+
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="p-8 max-w-7xl mx-auto space-y-8 pb-20">
+      
+      {notification && (
+          <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 px-6 py-3 rounded-full text-white font-bold shadow-2xl z-50 animate-fade-in">
+              {notification}
+          </div>
+      )}
+
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-black text-white mb-2">Item Shop</h1>
@@ -119,25 +133,60 @@ const ShopView: React.FC = () => {
         </div>
         
         <div className="flex p-1 bg-slate-800 rounded-lg border border-slate-700">
-          {['all', 'title', 'banner'].map((f) => (
+          {['all', 'title', 'banner', 'black-market'].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f as any)}
               className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${
-                filter === f ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+                filter === f 
+                    ? f === 'black-market' ? 'bg-slate-950 text-red-500 shadow-lg border border-red-900/50' : 'bg-indigo-600 text-white shadow-lg' 
+                    : 'text-slate-400 hover:text-white'
               }`}
             >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === 'black-market' ? 'Black Market' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredItems.map(item => (
-          <ShopCard key={item.id} item={item} />
-        ))}
-      </div>
+      {filter === 'black-market' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <div className="bg-slate-950 border border-slate-800 p-8 rounded-2xl relative overflow-hidden group">
+                   <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 to-purple-900/20 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                   <div className="relative z-10 flex flex-col items-center text-center gap-4">
+                       <Palette size={48} className="text-white animate-rainbow" />
+                       <h3 className="text-2xl font-black text-white animate-rainbow">RGB Username</h3>
+                       <p className="text-slate-400">Unlock a rainbow cycling animation for your username across the entire platform.</p>
+                       <button 
+                           onClick={handleBuyRainbow}
+                           disabled={user?.hasRainbowName || user?.credits < RGB_NAME_COST}
+                           className={`mt-4 px-8 py-3 rounded-xl font-bold flex items-center gap-2 ${user?.hasRainbowName ? 'bg-slate-800 text-slate-500' : 'bg-white text-black hover:scale-105 transition-transform'}`}
+                       >
+                           {user?.hasRainbowName ? 'OWNED' : `BUY FOR ${RGB_NAME_COST.toLocaleString()}`}
+                       </button>
+                   </div>
+               </div>
+
+               <div className="bg-slate-950 border border-slate-800 p-8 rounded-2xl relative overflow-hidden group">
+                   <div className="absolute inset-0 bg-gradient-to-br from-pink-900/20 to-red-900/20 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                   <div className="relative z-10 flex flex-col items-center text-center gap-4">
+                       <Music size={48} className="text-pink-500" />
+                       <h3 className="text-2xl font-black text-pink-500">Profile Music</h3>
+                       <p className="text-slate-400">Upload your own track. Plays automatically when people visit your profile.</p>
+                       <p className="text-xs text-slate-500 bg-slate-900 px-2 py-1 rounded">Available in Profile Settings</p>
+                       <div className="text-pink-400 font-bold mt-2">
+                           Cost: 5,000,000 Credits
+                       </div>
+                   </div>
+               </div>
+          </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredItems.map(item => (
+            <ShopCard key={item.id} item={item} />
+            ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useGame } from '../../contexts/GameContext';
-import { Shield, UserPlus, DollarSign, Search, Users, Gamepad2, Edit2, Save, X, Image as ImageIcon, ShoppingBag, Plus, Trash2, Upload, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Shield, UserPlus, DollarSign, Search, Users, Gamepad2, Edit2, Save, X, Image as ImageIcon, ShoppingBag, Plus, Trash2, Upload, AlertTriangle, RotateCcw, CheckCircle } from 'lucide-react';
 import { Game, CosmeticItem } from '../../types';
 import { ICON_MAP } from '../../constants';
 
@@ -17,9 +17,13 @@ const AdminView: React.FC = () => {
 
   // Game Edit State
   const [editingGame, setEditingGame] = useState<Game | null>(null);
+  const gameFileInputRef = useRef<HTMLInputElement>(null);
 
   // Reset Confirm State
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  // Notifications
+  const [notification, setNotification] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
 
   // Shop Manager State
   const [newShopItem, setNewShopItem] = useState<Partial<CosmeticItem>>({
@@ -33,6 +37,11 @@ const AdminView: React.FC = () => {
   });
   const [isImageBanner, setIsImageBanner] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const showNotification = (msg: string, type: 'success' | 'error') => {
+      setNotification({ msg, type });
+      setTimeout(() => setNotification(null), 3000);
+  };
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,22 +61,37 @@ const AdminView: React.FC = () => {
     if (!editBalance || editBalance.username !== username) return;
     adminUpdateUserBalance(username, Number(editBalance.amount));
     setEditBalance(null);
+    showNotification(`Balance updated for ${username}`, 'success');
   };
 
   const handleSaveGame = () => {
       if (editingGame) {
           adminUpdateGame(editingGame);
           setEditingGame(null);
+          showNotification("Game details updated successfully", 'success');
       }
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleShopImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (file) {
           const reader = new FileReader();
           reader.onloadend = () => {
               if (typeof reader.result === 'string') {
                   setNewShopItem({ ...newShopItem, image: reader.result });
+              }
+          };
+          reader.readAsDataURL(file);
+      }
+  };
+
+  const handleGameImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (file && editingGame) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              if (typeof reader.result === 'string') {
+                  setEditingGame({ ...editingGame, thumbnail: reader.result });
               }
           };
           reader.readAsDataURL(file);
@@ -93,6 +117,7 @@ const AdminView: React.FC = () => {
       }
 
       adminAddShopItem(item);
+      showNotification("Item added to shop", 'success');
       
       // Reset form
       setNewShopItem({
@@ -111,6 +136,15 @@ const AdminView: React.FC = () => {
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 relative pb-20">
+      
+      {/* Global Notification Toast */}
+      {notification && (
+          <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full font-bold shadow-2xl animate-fade-in flex items-center gap-2 ${notification.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
+              {notification.type === 'success' ? <CheckCircle size={18}/> : <AlertTriangle size={18}/>}
+              {notification.msg}
+          </div>
+      )}
+
       <header className="flex items-center gap-4 mb-8">
         <div className="p-3 bg-red-500/20 rounded-xl text-red-400">
           <Shield size={32} />
@@ -124,7 +158,7 @@ const AdminView: React.FC = () => {
       {/* Game Edit Modal */}
       {editingGame && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-indigo-500/50 rounded-2xl p-8 max-w-lg w-full shadow-2xl animate-fade-in relative">
+              <div className="bg-slate-900 border border-indigo-500/50 rounded-2xl p-8 max-w-lg w-full shadow-2xl animate-fade-in relative max-h-[90vh] overflow-y-auto">
                   <button onClick={() => setEditingGame(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X /></button>
                   
                   <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
@@ -153,17 +187,36 @@ const AdminView: React.FC = () => {
                       </div>
 
                       <div>
-                          <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Thumbnail URL</label>
+                          <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Thumbnail</label>
+                          
+                          {/* Image Preview & Upload */}
+                          <div className="mb-3 w-full h-32 bg-black rounded-lg overflow-hidden border border-slate-700 relative group">
+                              <img src={editingGame.thumbnail} alt="Preview" className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+                                  <button 
+                                    onClick={() => gameFileInputRef.current?.click()}
+                                    className="px-4 py-2 bg-white text-black rounded-lg font-bold flex items-center gap-2 shadow-xl"
+                                  >
+                                      <Upload size={16} /> Change Image
+                                  </button>
+                              </div>
+                          </div>
+                          <input 
+                              type="file" 
+                              ref={gameFileInputRef} 
+                              className="hidden" 
+                              accept="image/*"
+                              onChange={handleGameImageUpload} 
+                          />
+
                           <div className="flex gap-2">
                               <input 
                                   type="text" 
+                                  placeholder="Or paste image URL..."
                                   value={editingGame.thumbnail}
                                   onChange={e => setEditingGame({...editingGame, thumbnail: e.target.value})}
                                   className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:border-indigo-500 text-sm"
                               />
-                              <div className="w-10 h-10 rounded overflow-hidden bg-slate-950 flex-shrink-0">
-                                  <img src={editingGame.thumbnail} alt="Preview" className="w-full h-full object-cover" />
-                              </div>
                           </div>
                       </div>
 
@@ -179,6 +232,7 @@ const AdminView: React.FC = () => {
                                   <option value="Arcade">Arcade</option>
                                   <option value="Puzzle">Puzzle</option>
                                   <option value="Chance">Chance</option>
+                                  <option value="Creative">Creative</option>
                               </select>
                           </div>
                           <div>
@@ -220,6 +274,7 @@ const AdminView: React.FC = () => {
                         onClick={() => {
                             adminResetFactionMap();
                             setShowResetConfirm(false);
+                            showNotification("Faction Map Reset", 'success');
                         }} 
                         className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold shadow-lg transition-colors"
                     >
@@ -369,7 +424,7 @@ const AdminView: React.FC = () => {
                                           ref={fileInputRef} 
                                           className="hidden" 
                                           accept="image/*"
-                                          onChange={handleImageUpload}
+                                          onChange={handleShopImageUpload}
                                       />
                                   </div>
                               </div>
@@ -431,7 +486,10 @@ const AdminView: React.FC = () => {
                           </div>
 
                           <button 
-                              onClick={() => adminDeleteShopItem(item.id)}
+                              onClick={() => {
+                                  adminDeleteShopItem(item.id);
+                                  showNotification("Item deleted", 'success');
+                              }}
                               className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-colors"
                               title="Delete Item"
                           >

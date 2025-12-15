@@ -1,11 +1,15 @@
+
 import React from 'react';
-import { Trophy, Medal, Coins, User, Crown } from 'lucide-react';
+import { Trophy, Medal, Coins, User, Crown, ChevronsUp } from 'lucide-react';
 import { useGame } from '../../contexts/GameContext';
 
 const LeaderboardView: React.FC = () => {
-    const { allUsers, user } = useGame();
+    const { allUsers, user, setViewingProfile, setView } = useGame();
 
-    const sortedUsers = [...allUsers].sort((a, b) => b.credits - a.credits);
+    // Filter out admins and then sort by credits
+    const sortedUsers = allUsers
+        .filter(u => u.role !== 'admin')
+        .sort((a, b) => b.credits - a.credits);
 
     const getRankStyle = (index: number) => {
         switch (index) {
@@ -23,6 +27,11 @@ const LeaderboardView: React.FC = () => {
             case 2: return <Medal size={20} className="text-amber-600" />;
             default: return <span className="font-mono font-bold text-slate-500">#{index + 1}</span>;
         }
+    };
+
+    const handleProfileClick = (targetUser: typeof allUsers[0]) => {
+        setViewingProfile(targetUser);
+        setView('PROFILE');
     };
 
     return (
@@ -71,7 +80,8 @@ const LeaderboardView: React.FC = () => {
                                 return (
                                     <tr 
                                         key={u.username} 
-                                        className={`border-b border-slate-800/50 transition-colors ${isCurrentUser ? 'bg-indigo-900/10' : 'hover:bg-slate-800/30'}`}
+                                        onClick={() => handleProfileClick(u)}
+                                        className={`border-b border-slate-800/50 transition-colors cursor-pointer group ${isCurrentUser ? 'bg-indigo-900/10' : 'hover:bg-slate-800/30'}`}
                                     >
                                         <td className="p-4 text-center">
                                             <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center border ${getRankStyle(index)}`}>
@@ -80,7 +90,7 @@ const LeaderboardView: React.FC = () => {
                                         </td>
                                         <td className="p-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden">
+                                                <div className="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden group-hover:border-indigo-500 transition-colors">
                                                     {u.equipped.avatar ? (
                                                         <img src={u.equipped.avatar} alt={u.username} className="w-full h-full object-cover" />
                                                     ) : (
@@ -88,8 +98,15 @@ const LeaderboardView: React.FC = () => {
                                                     )}
                                                 </div>
                                                 <div>
-                                                    <div className={`font-bold ${isCurrentUser ? 'text-indigo-400' : 'text-white'}`}>
-                                                        {u.username}
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`font-bold ${u.hasRainbowName ? 'animate-rainbow' : isCurrentUser ? 'text-indigo-400' : 'text-white'}`}>
+                                                            {u.username}
+                                                        </div>
+                                                        {u.prestigeRank && (
+                                                            <div className="px-1.5 py-0.5 bg-yellow-900/40 text-yellow-500 rounded border border-yellow-700/50 text-[9px] font-bold uppercase tracking-wider flex items-center gap-0.5">
+                                                                <ChevronsUp size={10} /> {u.prestigeRank}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div className="text-xs text-slate-500 flex items-center gap-1">
                                                         <span className="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">{u.role}</span>
@@ -112,6 +129,13 @@ const LeaderboardView: React.FC = () => {
                                     </tr>
                                 );
                             })}
+                            {sortedUsers.length === 0 && (
+                                <tr>
+                                    <td colSpan={4} className="p-8 text-center text-slate-500">
+                                        No players found.
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>

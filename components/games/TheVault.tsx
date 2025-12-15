@@ -60,14 +60,15 @@ const TheVault: React.FC = () => {
             </button>
         </div>
 
-        <div className="flex-1 flex flex-col md:flex-row items-stretch">
+        {/* Main Content Container - Added overflow-hidden to prevent layout shift when history grows */}
+        <div className="flex-1 flex flex-col md:flex-row items-stretch overflow-hidden">
             
             {/* LEFT: Game Interface */}
-            <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
+            <div className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-y-auto">
                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-900/20 via-[#0a1014] to-[#0a1014] pointer-events-none"></div>
 
                  {/* Jackpot Display */}
-                 <div className="mb-10 text-center relative z-10">
+                 <div className="mb-10 text-center relative z-10 shrink-0">
                      <div className="text-emerald-500/50 text-xs tracking-[0.5em] mb-2 uppercase">Current Bounty</div>
                      <div className="text-6xl md:text-8xl font-black text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.5)] tabular-nums">
                          {vaultState.jackpot.toLocaleString()}
@@ -78,7 +79,7 @@ const TheVault: React.FC = () => {
                  </div>
 
                  {/* Display Screen */}
-                 <div className="bg-[#05080a] border-2 border-emerald-900 rounded-xl p-6 w-full max-w-sm mb-6 shadow-[0_0_30px_rgba(5,150,105,0.1)] relative overflow-hidden">
+                 <div className="bg-[#05080a] border-2 border-emerald-900 rounded-xl p-6 w-full max-w-sm mb-6 shadow-[0_0_30px_rgba(5,150,105,0.1)] relative overflow-hidden shrink-0">
                      {feedback && (
                          <div className={`absolute inset-0 flex items-center justify-center z-20 ${feedback.type === 'success' ? 'bg-emerald-900/90' : 'bg-red-900/90'} transition-opacity`}>
                              <p className={`font-bold text-xl ${feedback.type === 'success' ? 'text-white animate-pulse' : 'text-white'}`}>{feedback.msg}</p>
@@ -95,7 +96,7 @@ const TheVault: React.FC = () => {
                  </div>
 
                  {/* Keypad */}
-                 <div className="grid grid-cols-3 gap-3 w-full max-w-xs relative z-10">
+                 <div className="grid grid-cols-3 gap-3 w-full max-w-xs relative z-10 shrink-0">
                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
                          <button 
                             key={num} 
@@ -120,14 +121,14 @@ const TheVault: React.FC = () => {
                      </button>
                  </div>
 
-                 <div className="mt-8 text-emerald-800/60 text-xs flex items-center gap-2">
+                 <div className="mt-8 text-emerald-800/60 text-xs flex items-center gap-2 shrink-0">
                      <Coins size={12} /> Cost per attempt: 25 Credits
                  </div>
             </div>
 
             {/* RIGHT: Feed / History */}
-            <div className="w-full md:w-96 bg-[#05080a] border-l border-emerald-900/30 flex flex-col z-20">
-                <div className="p-4 border-b border-emerald-900/30 bg-emerald-900/5 flex items-center justify-between">
+            <div className="w-full md:w-96 bg-[#05080a] border-l border-emerald-900/30 flex flex-col z-20 h-1/3 md:h-auto border-t md:border-t-0 border-emerald-900/30">
+                <div className="p-4 border-b border-emerald-900/30 bg-emerald-900/5 flex items-center justify-between shrink-0">
                      <h3 className="text-emerald-500 font-bold flex items-center gap-2">
                          <History size={16} /> Access Log
                      </h3>
@@ -175,7 +176,7 @@ const TheVault: React.FC = () => {
                     )}
                 </div>
 
-                <div className="p-4 border-t border-emerald-900/30 text-[10px] text-emerald-800 space-y-1">
+                <div className="p-4 border-t border-emerald-900/30 text-[10px] text-emerald-800 space-y-1 shrink-0">
                     <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Correct Number & Position</div>
                     <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-yellow-500"></div> Correct Number, Wrong Position</div>
                 </div>

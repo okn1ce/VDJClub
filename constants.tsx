@@ -1,11 +1,25 @@
 
-import { CosmeticItem, Game, UpgradeType, CoreTurret } from "./types";
+import { CosmeticItem, Game, UpgradeType, CoreTurret, Planet, Recipe } from "./types";
 import { 
   User, Shield, Zap, Crown, Ghost, Sword, Skull, Star, Heart, 
   MousePointer2, Factory, TrendingUp, Users, Clock, Coins, Beer, Grid3X3, Castle, Palette,
   ShoppingBag, Tag, Image as ImageIcon, Lock, Key, Crosshair, Target, Cpu, Radio, Bitcoin, Briefcase,
-  Leaf, Cog, Hexagon
+  Leaf, Cog, Hexagon, Hammer, Rocket, Globe
 } from "lucide-react";
+
+export const PRESTIGE_RANKS = [
+    "VDJPRO I",
+    "VDJPRO II",
+    "VDJPRO III",
+    "GOONER I",
+    "GOONER II",
+    "GOONER III",
+    "GOONER MASTER"
+];
+
+export const PRESTIGE_COST = 1000000; // 1 Million to prestige
+export const RGB_NAME_COST = 500000;
+export const PROFILE_MUSIC_COST = 5000000;
 
 export const DEFAULT_GAMES: Game[] = [
   {
@@ -18,19 +32,19 @@ export const DEFAULT_GAMES: Game[] = [
     difficulty: 'Easy'
   },
   {
+    id: 'the-auction-house',
+    title: 'The Auction House',
+    description: 'Bid on exclusive items against other players. Highest bidder wins. Money is refunded if you are outbid.',
+    thumbnail: 'https://images.unsplash.com/photo-1569388330292-79cc1ec6eb13?q=80&w=1000&auto=format&fit=crop',
+    playerCount: 'MMO',
+    category: 'Chance',
+    difficulty: 'Medium'
+  },
+  {
     id: 'faction-wars',
     title: 'Faction Wars',
     description: 'Join a faction (Les Gays, Les Halalistes, or Les Haramistes) and battle for territory control on a global map.',
     thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1000&auto=format&fit=crop',
-    playerCount: 'MMO',
-    category: 'Strategy',
-    difficulty: 'Medium'
-  },
-  {
-    id: 'the-core',
-    title: 'The Core',
-    description: 'Co-op Boss Raid. Build turrets, combine DPS with the community, and destroy the Core for massive payouts.',
-    thumbnail: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=1000&auto=format&fit=crop',
     playerCount: 'MMO',
     category: 'Strategy',
     difficulty: 'Medium'
@@ -95,9 +109,68 @@ export const DEFAULT_CORE_TURRETS: CoreTurret[] = [
     { id: 'tur_4', name: 'Plasma Cannon', cost: 10000, dps: 800, icon: 'Cpu', color: 'text-purple-400' },
 ];
 
+export const PLANETS: Planet[] = [
+  {
+    id: 'hydro',
+    name: 'Hydro Prime',
+    description: 'A water-rich world teeming with life and fuel sources.',
+    resourceYield: { fuel: 2, spice: 0.5 },
+    color: 'bg-blue-600'
+  },
+  {
+    id: 'forge',
+    name: 'Iron Forge',
+    description: 'A desolate wasteland rich in minerals and metals.',
+    resourceYield: { iron: 2, gold: 0.2 },
+    color: 'bg-orange-700'
+  },
+  {
+    id: 'cyber',
+    name: 'Cyberon',
+    description: 'A technological hub. Resources are scarce, but demand is high.',
+    resourceYield: { circuit: 0.1 },
+    color: 'bg-purple-600'
+  },
+  {
+    id: 'eden',
+    name: 'New Eden',
+    description: 'A paradise planet. Ideal for luxury goods.',
+    resourceYield: { spice: 1, gold: 0.5 },
+    color: 'bg-emerald-600'
+  }
+];
+
+export const RECIPES: Recipe[] = [
+  {
+    id: 'craft_steel',
+    result: 'steel',
+    ingredients: { iron: 5, fuel: 2 },
+    craftTime: 5000
+  },
+  {
+    id: 'craft_circuit',
+    result: 'circuit',
+    ingredients: { gold: 2, iron: 2 },
+    craftTime: 10000
+  },
+  {
+    id: 'craft_engine',
+    result: 'engine',
+    ingredients: { steel: 5, circuit: 2, fuel: 10 },
+    craftTime: 30000
+  },
+  {
+    id: 'craft_jewelry',
+    result: 'jewelry',
+    ingredients: { gold: 5, spice: 5 },
+    craftTime: 15000
+  }
+];
+
 export const ICON_MAP: Record<string, any> = {
   User, Shield, Zap, Crown, Ghost, Sword, Skull, Star, Heart, 
   MousePointer2, Factory, TrendingUp, Users, Clock, Coins, Beer, 
   Grid3X3, Castle, Palette, ShoppingBag, Tag, ImageIcon, Lock, Key,
-  Crosshair, Target, Cpu, Radio, Bitcoin, Briefcase, Leaf, Cog, Hexagon
+  Crosshair, Target, Cpu, Radio, Bitcoin, Briefcase, Leaf, Cog, Hexagon,
+  Hammer, Rocket, Globe
 };

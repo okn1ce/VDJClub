@@ -39,6 +39,14 @@ export interface UserProfile {
   role: UserRole;
   credits: number;
   faction?: FactionId; // New field for Faction Wars
+  
+  // Prestige & Customization
+  prestigeRank?: string; // e.g., "VDJPRO I"
+  hasRainbowName?: boolean;
+  profileMusic?: string; // DataURI of the MP3
+  
+  cargo?: Record<string, number>; // Space Trader Inventory
+  currentPlanet?: string; // Space Trader Location
   inventory: string[]; // Array of CosmeticItem IDs
   equipped: {
     avatar: string;
@@ -162,4 +170,61 @@ export interface FactionWarState {
   startTime: number;
   endTime: number;
   rewardPool: number;
+}
+
+// --- The Auction House Types ---
+export interface AuctionItem {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  type: 'banner' | 'title';
+  startingBid: number;
+  minIncrement: number;
+  endTime: number; // Timestamp
+  seller: string; // 'SYSTEM' or userId
+}
+
+export interface AuctionState {
+  activeItem: AuctionItem | null;
+  currentBid: number;
+  highestBidder: string | null; // username
+  highestBidderAvatar: string | null;
+  bidCount: number;
+  history: { username: string; amount: number; timestamp: number }[];
+}
+
+// --- Space Trader Types ---
+export type ResourceType = 'fuel' | 'iron' | 'gold' | 'spice' | 'steel' | 'circuit' | 'engine' | 'jewelry';
+
+export interface Planet {
+    id: string;
+    name: string;
+    description: string;
+    resourceYield: Record<string, number>; // e.g. { iron: 2, gold: 0.1 }
+    color: string;
+    image?: string;
+}
+
+export interface Recipe {
+    id: string;
+    result: ResourceType;
+    ingredients: Record<string, number>;
+    craftTime: number; // ms
+}
+
+export interface MarketState {
+  prices: Record<string, number>; // Current buy price from system
+  trends: Record<string, 'up' | 'down' | 'stable'>;
+  lastUpdate: number;
+}
+
+export interface TradeOffer {
+  id: string;
+  sellerId: string;
+  resource: ResourceType;
+  amount: number;
+  pricePerUnit: number; // Price set by player
+  totalPrice: number;
+  timestamp: number;
 }

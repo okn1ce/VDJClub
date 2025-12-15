@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ViewState, UserProfile, CosmeticItem, UpgradeType, BettingEvent, Bet, BettingOption, Game, KothState, CanvasPixels, VaultState, VaultHistoryEntry, CoreState, CorePlayer, CoreTurret, FactionId, Sector, FactionWarState } from '../types';
-import { DEFAULT_CLICKER_UPGRADES, DEFAULT_GAMES, DEFAULT_SHOP_ITEMS, DEFAULT_CORE_TURRETS } from '../constants';
+import { ViewState, UserProfile, CosmeticItem, UpgradeType, BettingEvent, Bet, BettingOption, Game, KothState, CanvasPixels, VaultState, VaultHistoryEntry, CoreState, CorePlayer, CoreTurret, FactionId, Sector, FactionWarState, AuctionState, AuctionItem } from '../types';
+import { DEFAULT_CLICKER_UPGRADES, DEFAULT_GAMES, DEFAULT_SHOP_ITEMS, DEFAULT_CORE_TURRETS, PRESTIGE_RANKS, RGB_NAME_COST, PROFILE_MUSIC_COST, PRESTIGE_COST } from '../constants';
 import { db } from '../services/firebase';
 import { ref, onValue, set, update, remove, push, get, increment } from 'firebase/database';
 
@@ -19,6 +19,10 @@ interface GameContextType {
   activeGameId: string | null;
   setActiveGameId: (id: string | null) => void;
   
+  // View State for Profiles
+  viewingProfile: UserProfile | null;
+  setViewingProfile: (user: UserProfile | null) => void;
+
   // Games Data
   games: Game[];
   adminUpdateGame: (game: Game) => void;
@@ -62,6 +66,18 @@ interface GameContextType {
   joinFaction: (faction: FactionId) => boolean;
   interactWithSector: (sectorId: string, action: 'attack' | 'reinforce') => { success: boolean, message: string };
   adminResetFactionMap: () => void;
+
+  // Auction House Data & Functions
+  auctionState: AuctionState | null;
+  placeAuctionBid: (amount: number) => { success: boolean, message: string };
+  adminCreateAuction: (item: AuctionItem) => void;
+  adminCancelAuction: () => void;
+  claimAuctionReward: () => { success: boolean, message: string };
+  
+  // Prestige & Customization
+  prestige: () => { success: boolean, message: string };
+  buyRainbowName: () => { success: boolean, message: string };
+  uploadProfileMusic: (musicDataUrl: string) => { success: boolean, message: string };
 
   // Admin functions
   adminCreateUser: (username: string, password: string, credits?: number) => boolean;
@@ -123,6 +139,7 @@ const normalizeFactionId = (faction: string): FactionId | undefined => {
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [view, setView] = useState<ViewState>('HOME');
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [viewingProfile, setViewingProfile] = useState<UserProfile | null>(null);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [activeGameId, setActiveGameId] = useState<string | null>(null);
   
@@ -150,6 +167,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [factionSectors, setFactionSectors] = useState<Sector[]>([]);
   const [factionWarState, setFactionWarState] = useState<FactionWarState | null>(null);
 
+  // Auction House
+  const [auctionState, setAuctionState] = useState<AuctionState | null>(null);
+
   // 1. Initialize Listeners
   useEffect(() => {
     // Listen to Users
@@ -161,12 +181,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Sanitize users list
         const usersList: UserProfile[] = rawUsers.map(u => ({
             ...u,
-            faction: u.faction ? normalizeFactionId(u.faction) : undefined
+            faction: u.faction ? normalizeFactionId(u.faction) : undefined,
+            cargo: u.cargo || { fuel: 0, iron: 0, gold: 0, spice: 0 },
+            currentPlanet: u.currentPlanet || 'hydro'
         }));
         
         setAllUsers(usersList);
         
-        // If we are logged in, update our local user state to match the DB
+        // Update local user state
         setUser(prev => {
             if (prev) {
                 const updated = usersList.find(u => u.username === prev.username);
@@ -174,6 +196,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             return null;
         });
+
+        // Update viewing profile state if watching someone
+        setViewingProfile(prev => {
+            if (prev) {
+                const updated = usersList.find(u => u.username === prev.username);
+                return updated || prev;
+            }
+            return null;
+        });
+
       } else {
         // Initialize DB with admin if empty
         set(ref(db, `users/${INITIAL_ADMIN.username}`), INITIAL_ADMIN);
@@ -188,14 +220,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const dbGames = Object.values(data) as Game[];
             setGames(dbGames);
             
-            // Auto-seed missing default games (Self-healing for new game additions)
+            // Auto-seed missing default games
             DEFAULT_GAMES.forEach(defGame => {
                 if (!dbGames.find(g => g.id === defGame.id)) {
                     update(ref(db, `games/${defGame.id}`), defGame);
                 }
             });
 
-            // CLEANUP: Remove games not in DEFAULT_GAMES (Placeholders removal)
+            // CLEANUP
             const defaultIds = DEFAULT_GAMES.map(g => g.id);
             dbGames.forEach(g => {
                 if (!defaultIds.includes(g.id)) {
@@ -274,13 +306,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubVault = onValue(vaultRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-             // Handle arrays from firebase being objects if indices are sparse (unlikely here but good practice)
              const history = data.history ? Object.values(data.history) : [];
-             // Sort history by time descending locally
              history.sort((a: any, b: any) => b.timestamp - a.timestamp);
              setVaultState({ ...data, history });
         } else {
-            // Seed
             const seed: VaultState = { ...INITIAL_VAULT_STATE };
             set(ref(db, 'vault/public'), seed);
             set(ref(db, 'vault/private/code'), "12345"); // Default Code (5 digits)
@@ -349,6 +378,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     });
 
+    // Listen to Auction House
+    const auctionRef = ref(db, 'auction');
+    const unsubAuction = onValue(auctionRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            const history = data.history ? Object.values(data.history) : [];
+            history.sort((a: any, b: any) => b.timestamp - a.timestamp);
+            setAuctionState({ ...data, history });
+        } else {
+            setAuctionState(null);
+        }
+    });
+
     return () => {
         unsubUsers();
         unsubGames();
@@ -363,6 +405,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unsubCorePlayers();
         unsubFactions();
         unsubFactionState();
+        unsubAuction();
     };
   }, []);
 
@@ -373,42 +416,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const foundUser = allUsers.find(u => u.username === storedCurrent);
       if (foundUser) setUser(foundUser);
     }
-  }, [allUsers]); // Re-run when users are loaded
+  }, [allUsers]);
 
-  // 3. KOTH Loop (Host Logic - driven by the King)
+  // 3. KOTH Loop
   useEffect(() => {
-      // Logic runs if:
-      // 1. User is logged in
-      // 2. Koth state exists and has a king
-      // 3. The current user IS the King
       if (!user || !kothState || !kothState.kingId || user.username !== kothState.kingId) return;
 
       const interval = setInterval(() => {
-          // Payout is 1% of Treasury
-          const payout = Math.max(1, Math.floor(kothState.treasury * 0.01));
-          
+          // Payout is 0.5% of Treasury every 30 seconds
+          const payout = Math.max(1, Math.floor(kothState.treasury * 0.005));
           if (payout > 0) {
               const updates: Record<string, any> = {};
-              // Use atomic increment so we don't depend on user.credits in dependency array (prevents timer reset)
               updates[`users/${user.username}/credits`] = increment(payout);
               updates[`users/${user.username}/stats/totalEarnings`] = increment(payout);
-              // NOTE: We do NOT deduct from treasury. It continues to grow as people usurp.
-              // It acts as an index for payout amount.
-              
               update(ref(db), updates);
           }
-      }, 3000);
+      }, 30000);
 
       return () => clearInterval(interval);
   }, [user?.username, kothState?.kingId, kothState?.treasury]);
 
 
-  // 4. The Core Admin Loop (Host Logic)
+  // 4. The Core Admin Loop
   useEffect(() => {
     if (!user || user.role !== 'admin' || !coreState) return;
     
     const interval = setInterval(() => {
-        // Calculate Total DPS from all players
         const totalDps = corePlayers.reduce((sum, p) => sum + p.dps, 0);
 
         if (totalDps > 0 && coreState.hp > 0) {
@@ -417,7 +450,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             
             updates['core/state/hp'] = newHp;
             
-            // Distribute damage dealt stats to players
             corePlayers.forEach(p => {
                 if(p.dps > 0) {
                     updates[`core/players/${p.userId}/damageDealt`] = (p.damageDealt || 0) + p.dps;
@@ -425,11 +457,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
 
             if (newHp === 0) {
-                // BOSS DEAD - Distribute Rewards & Respawn
-                // Reward Pool = 10% of Max HP (approx 1 credit per 10 dmg)
-                
-                const ratio = 0.1; // 10 damage = 1 credit
-                
+                const ratio = 0.1;
                 corePlayers.forEach(p => {
                     const reward = Math.floor(p.damageDealt * ratio);
                     if (reward > 0) {
@@ -439,13 +467,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                              updates[`users/${p.userId}/stats/totalEarnings`] = playerUser.stats.totalEarnings + reward;
                          }
                     }
-                    // Reset damage, DPS, and turrets for next round (Prestige/Reset mechanic)
                     updates[`core/players/${p.userId}/damageDealt`] = 0;
                     updates[`core/players/${p.userId}/dps`] = 0;
                     updates[`core/players/${p.userId}/turrets`] = {};
                 });
 
-                // Level Up Core
                 const nextLevel = coreState.level + 1;
                 const nextHp = Math.floor(coreState.maxHp * 1.5);
                 updates['core/state/level'] = nextLevel;
@@ -459,6 +485,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => clearInterval(interval);
   }, [user?.role, coreState, corePlayers, allUsers]);
+
 
   // --- Auth ---
 
@@ -475,6 +502,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
+    setViewingProfile(null);
     localStorage.removeItem(STORAGE_KEY_CURRENT);
     setView('HOME');
   };
@@ -482,9 +510,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // --- Helpers for DB Updates ---
   
   const updateUserInDb = (updatedUser: UserProfile) => {
-      // Optimistic update
       setUser(updatedUser);
-      // DB Update
       update(ref(db, `users/${updatedUser.username}`), updatedUser);
   };
 
@@ -554,6 +580,54 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateUserInDb(updated);
   };
 
+  // --- Prestige & Customization ---
+  
+  const prestige = (): { success: boolean, message: string } => {
+    if (!user) return { success: false, message: "Not logged in" };
+    if (user.credits < PRESTIGE_COST) return { success: false, message: "Insufficient funds" };
+
+    const currentRank = user.prestigeRank || "NONE";
+    const rankIndex = currentRank === "NONE" ? -1 : PRESTIGE_RANKS.indexOf(currentRank);
+    const nextRank = PRESTIGE_RANKS[rankIndex + 1];
+
+    if (!nextRank) return { success: false, message: "Max Rank Reached!" };
+
+    const updated: UserProfile = {
+      ...user,
+      credits: 0, // RESET credits
+      prestigeRank: nextRank
+    };
+    updateUserInDb(updated);
+    return { success: true, message: `Promoted to ${nextRank}!` };
+  };
+
+  const buyRainbowName = (): { success: boolean, message: string } => {
+    if (!user) return { success: false, message: "Not logged in" };
+    if (user.hasRainbowName) return { success: false, message: "Already purchased" };
+    if (user.credits < RGB_NAME_COST) return { success: false, message: "Insufficient funds" };
+
+    const updated: UserProfile = {
+      ...user,
+      credits: user.credits - RGB_NAME_COST,
+      hasRainbowName: true
+    };
+    updateUserInDb(updated);
+    return { success: true, message: "RGB Name Unlocked!" };
+  };
+
+  const uploadProfileMusic = (musicDataUrl: string): { success: boolean, message: string } => {
+      if (!user) return { success: false, message: "Not logged in" };
+      if (user.credits < PROFILE_MUSIC_COST) return { success: false, message: "Insufficient funds" };
+      
+      const updated: UserProfile = {
+          ...user,
+          credits: user.credits - PROFILE_MUSIC_COST,
+          profileMusic: musicDataUrl
+      };
+      updateUserInDb(updated);
+      return { success: true, message: "Profile Music Set!" };
+  };
+
   // --- PMU Actions ---
   
   const createBettingEvent = (question: string, optionTexts: string[]) => {
@@ -579,11 +653,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (user.credits < amount) return false;
       if (amount <= 0) return false;
 
-      // 1. Deduct money immediately
       const updatedUser = { ...user, credits: user.credits - amount };
       updateUserInDb(updatedUser);
 
-      // 2. Record bet
       const betId = `bet_${Date.now()}`;
       const newBet: Bet = {
           id: betId,
@@ -679,20 +751,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const submitVaultGuess = async (guess: string): Promise<{success: boolean, message: string, result?: {matches: number, partial: number}}> => {
       if (!user) return { success: false, message: "Not logged in" };
-      // COST: 25 Credits
       if (user.credits < 25) return { success: false, message: "Not enough credits" };
 
-      // 1. Fetch the secret code
       const snapshot = await get(ref(db, 'vault/private/code'));
       let secret = snapshot.val() as string;
       
-      // Auto-migrate if length mismatch (Legacy support for 4 digit codes)
       if (!secret || secret.length !== 5) {
           secret = Math.floor(10000 + Math.random() * 90000).toString();
           await set(ref(db, 'vault/private/code'), secret);
       }
       
-      // 2. Check Match (5 Digits)
       let matches = 0;
       let partial = 0;
       
@@ -701,7 +769,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const secretUsed = Array(5).fill(false);
       const guessUsed = Array(5).fill(false);
 
-      // Exact Matches
       for (let i = 0; i < 5; i++) {
           if (guessArr[i] === secretArr[i]) {
               matches++;
@@ -710,7 +777,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
       }
 
-      // Partial Matches
       for (let i = 0; i < 5; i++) {
           if (!guessUsed[i]) {
               for (let j = 0; j < 5; j++) {
@@ -726,13 +792,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const updates: Record<string, any> = {};
 
       if (matches === 5) {
-          // WINNER!
           const prize = vaultState.jackpot;
           updates[`users/${user.username}/credits`] = user.credits + prize; 
           updates[`users/${user.username}/stats/totalEarnings`] = user.stats.totalEarnings + prize;
           updates[`users/${user.username}/stats/wins`] = user.stats.wins + 1;
           
-          updates[`vault/public/jackpot`] = 500; // Reset
+          updates[`vault/public/jackpot`] = 500;
           updates[`vault/public/lastWinner`] = {
               username: user.username,
               amount: prize,
@@ -740,18 +805,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
               timestamp: Date.now()
           };
           
-          // New Code (5 Digits)
           const newCode = Math.floor(10000 + Math.random() * 90000).toString();
           updates[`vault/private/code`] = newCode;
-          updates[`vault/public/history`] = []; // Reset history for new round
+          updates[`vault/public/history`] = [];
 
           await update(ref(db), updates);
-          // Opt update
           setUser({ ...user, credits: user.credits + prize });
           return { success: true, message: "CODE CRACKED!", result: { matches: 5, partial: 0 } };
 
       } else {
-          // LOSS - Deduct 25
           updates[`users/${user.username}/credits`] = user.credits - 25;
           updates[`vault/public/jackpot`] = vaultState.jackpot + 5;
           
@@ -767,7 +829,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           updates[`vault/public/history/${historyRef.key}`] = entry;
 
           await update(ref(db), updates);
-          // Opt update
           setUser({ ...user, credits: user.credits - 25 });
           return { success: false, message: "Incorrect Code", result: { matches, partial } };
       }
@@ -778,7 +839,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!user) return false;
       if (user.credits < turret.cost) return false;
 
-      // 1. Get current player state (or create)
       const playerState = corePlayers.find(p => p.userId === user.username) || {
           userId: user.username,
           username: user.username,
@@ -788,19 +848,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           lastActive: Date.now()
       };
 
-      // 2. Calculate New State
       const currentTurrets = playerState.turrets || {};
       const currentCount = currentTurrets[turret.id] || 0;
       const newTurrets = { ...currentTurrets, [turret.id]: currentCount + 1 };
       
-      // Recalculate DPS completely from scratch to be safe
       let newDps = 0;
       Object.entries(newTurrets).forEach(([tid, count]) => {
            const t = DEFAULT_CORE_TURRETS.find(dt => dt.id === tid);
            if(t) newDps += t.dps * (count as number);
       });
 
-      // 3. Update DB
       const updates: Record<string, any> = {};
       updates[`users/${user.username}/credits`] = user.credits - turret.cost;
       updates[`core/players/${user.username}`] = {
@@ -815,11 +872,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
   };
 
-  // Admin Reset Core to Level 1
   const adminResetCore = () => {
-      // Reset State
       set(ref(db, 'core/state'), INITIAL_CORE_STATE);
-      // Reset Players
       set(ref(db, 'core/players'), {});
   };
 
@@ -848,9 +902,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const updates: Record<string, any> = {};
       updates[`users/${user.username}/credits`] = user.credits - COST;
       
-      // Calculate new state
       let newDefense = sector.defense;
-      // Normalizing current owner: if undefined (missing from DB), treat as null
       const currentOwner = sector.owner ? normalizeFactionId(sector.owner) || null : null;
       const userFactionId = normalizeFactionId(user.faction) || user.faction;
       
@@ -858,30 +910,27 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let newMax = sector.maxDefense;
 
       if (action === 'attack') {
-          // If unowned or enemy
           if (currentOwner === null) {
                newOwner = userFactionId;
-               newDefense = 100; // Claim it
+               newDefense = 100;
                newMax = 100;
           } else if (currentOwner !== userFactionId) {
                newDefense = sector.defense - POWER;
                if (newDefense <= 0) {
                    newOwner = userFactionId;
-                   newDefense = 50; // Capture with some health
+                   newDefense = 50;
                    newMax = 100;
                }
           }
       } else {
-          // Reinforce (Must own)
           if (currentOwner === userFactionId) {
               newDefense = sector.defense + POWER;
               if (newDefense > newMax) {
-                  newMax = newDefense; // Increase max cap slightly on overflow
+                  newMax = newDefense;
               }
           }
       }
 
-      // Ensure we don't pass undefined to firebase
       updates[`factions/map/${sectorId}/owner`] = newOwner === undefined ? null : newOwner;
       updates[`factions/map/${sectorId}/defense`] = newDefense;
       updates[`factions/map/${sectorId}/maxDefense`] = newMax;
@@ -894,6 +943,109 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const adminResetFactionMap = () => {
     remove(ref(db, 'factions/map'));
+  };
+
+  // --- Auction House Actions ---
+  const adminCreateAuction = (item: AuctionItem) => {
+      const initialState: AuctionState = {
+          activeItem: item,
+          currentBid: item.startingBid,
+          highestBidder: null,
+          highestBidderAvatar: null,
+          bidCount: 0,
+          history: []
+      };
+      set(ref(db, 'auction'), initialState);
+  };
+
+  const adminCancelAuction = () => {
+    if (!auctionState || !auctionState.activeItem) return;
+
+    const updates: Record<string, any> = {};
+    if (auctionState.highestBidder) {
+        const bidder = allUsers.find(u => u.username === auctionState.highestBidder);
+        if (bidder) {
+            updates[`users/${bidder.username}/credits`] = bidder.credits + auctionState.currentBid;
+        }
+    }
+    updates['auction'] = null;
+    update(ref(db), updates);
+  };
+
+  const claimAuctionReward = (): { success: boolean, message: string } => {
+      if (!auctionState?.activeItem || !auctionState.highestBidder) return { success: false, message: "No active winner" };
+      if (user?.username !== auctionState.highestBidder) return { success: false, message: "Not the winner" };
+
+      // Convert to Cosmetic Item
+      const newItem: CosmeticItem = {
+          id: auctionState.activeItem.id,
+          name: auctionState.activeItem.name,
+          description: auctionState.activeItem.description,
+          type: auctionState.activeItem.type || 'banner',
+          cost: auctionState.currentBid, // Valuation
+          icon: 'Crown',
+          color: 'bg-yellow-900', // Default fallback
+          image: auctionState.activeItem.image
+      };
+
+      const updates: Record<string, any> = {};
+      
+      // 1. Add to global item DB so it resolves
+      updates[`shop_items/${newItem.id}`] = newItem;
+
+      // 2. Add to winner inventory
+      const currentInv = user.inventory || [];
+      updates[`users/${user.username}/inventory`] = [...currentInv, newItem.id];
+
+      // 3. Close Auction
+      updates['auction'] = null;
+
+      update(ref(db), updates);
+      
+      // Opt update
+      setUser({ ...user, inventory: [...currentInv, newItem.id] });
+
+      return { success: true, message: "Item claimed!" };
+  };
+
+  const placeAuctionBid = (amount: number): { success: boolean, message: string } => {
+      if (!user || !auctionState || !auctionState.activeItem) return { success: false, message: "No active auction" };
+      if (user.credits < amount) return { success: false, message: "Insufficient credits" };
+      if (Date.now() > auctionState.activeItem.endTime) return { success: false, message: "Auction ended" };
+      
+      const minBid = auctionState.highestBidder 
+        ? auctionState.currentBid + auctionState.activeItem.minIncrement 
+        : auctionState.activeItem.startingBid;
+
+      if (amount < minBid) return { success: false, message: `Minimum bid is ${minBid}` };
+
+      const updates: Record<string, any> = {};
+
+      if (auctionState.highestBidder) {
+          const prevBidder = allUsers.find(u => u.username === auctionState.highestBidder);
+          if (prevBidder) {
+              updates[`users/${prevBidder.username}/credits`] = prevBidder.credits + auctionState.currentBid;
+          }
+      }
+
+      updates[`users/${user.username}/credits`] = user.credits - amount;
+      updates[`auction/currentBid`] = amount;
+      updates[`auction/highestBidder`] = user.username;
+      updates[`auction/highestBidderAvatar`] = user.equipped.avatar;
+      updates[`auction/bidCount`] = (auctionState.bidCount || 0) + 1;
+      
+      const historyEntry = {
+          username: user.username,
+          amount: amount,
+          timestamp: Date.now()
+      };
+      const historyRef = push(ref(db, 'auction/history'));
+      updates[`auction/history/${historyRef.key}`] = historyEntry;
+
+      update(ref(db), updates);
+      setUser({ ...user, credits: user.credits - amount });
+      
+      return { success: true, message: "Bid placed successfully!" };
   };
 
   // --- Admin Actions ---
@@ -945,6 +1097,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateAvatar,
       activeGameId, 
       setActiveGameId,
+      viewingProfile,
+      setViewingProfile,
       games,
       adminUpdateGame,
       shopItems,
@@ -976,6 +1130,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       joinFaction,
       interactWithSector,
       adminResetFactionMap,
+      // Auction
+      auctionState,
+      placeAuctionBid,
+      adminCreateAuction,
+      adminCancelAuction,
+      claimAuctionReward,
+      // Prestige
+      prestige,
+      buyRainbowName,
+      uploadProfileMusic,
       // Admin
       adminCreateUser,
       adminUpdateUserBalance,

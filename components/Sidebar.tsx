@@ -5,7 +5,7 @@ import { useGame } from '../contexts/GameContext';
 import { ViewState } from '../types';
 
 const Sidebar: React.FC = () => {
-  const { view, setView, user, logout, setActiveGameId } = useGame();
+  const { view, setView, user, logout, setActiveGameId, setViewingProfile } = useGame();
 
   const menuItems: { id: ViewState; icon: any; label: string }[] = [
     { id: 'HOME', icon: Home, label: 'Hub' },
@@ -21,6 +21,9 @@ const Sidebar: React.FC = () => {
   const handleNav = (target: ViewState) => {
     // Force reset game state when navigating
     setActiveGameId(null);
+    if (target === 'PROFILE') {
+        setViewingProfile(null); // Ensure we see own profile
+    }
     setView(target);
   };
 
