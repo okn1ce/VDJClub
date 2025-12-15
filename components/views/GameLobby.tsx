@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { useGame } from '../../contexts/GameContext';
 import AbdouClicker from '../games/AbdouClicker';
@@ -8,6 +9,7 @@ import CanvasClash from '../games/CanvasClash';
 import TheVault from '../games/TheVault';
 import FactionWars from '../games/FactionWars';
 import TheAuctionHouse from '../games/TheAuctionHouse';
+import FishingGame from '../games/FishingGame';
 
 const GameLobby: React.FC = () => {
   const { activeGameId } = useGame();
@@ -38,6 +40,10 @@ const GameLobby: React.FC = () => {
 
   if (activeGameId === 'the-auction-house') {
       return <TheAuctionHouse />;
+  }
+
+  if (activeGameId === 'fishing-game') {
+      return <FishingGame />;
   }
 
   return (

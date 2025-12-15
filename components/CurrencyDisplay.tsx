@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { Coins, Plus } from 'lucide-react';
+import { Coins } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 
 const CurrencyDisplay: React.FC = () => {
@@ -16,13 +17,6 @@ const CurrencyDisplay: React.FC = () => {
             {user.credits.toLocaleString()}
           </span>
         </div>
-        
-        <div className="h-6 w-px bg-slate-700"></div>
-
-        <button className="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
-          <Plus size={14} />
-          <span>BUY</span>
-        </button>
       </div>
     </div>
   );

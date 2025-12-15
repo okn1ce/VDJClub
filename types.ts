@@ -33,6 +33,48 @@ export interface UpgradeType {
 
 export type FactionId = 'gay' | 'halal' | 'haram';
 
+// --- FISHING GAME TYPES ---
+export interface Ocean {
+  id: string;
+  name: string;
+  cost: number;
+  description: string;
+  color: string; // Tailwind bg class for theme
+  image?: string;
+}
+
+export interface FishType {
+  id: string;
+  name: string;
+  rarity: 'Common' | 'Uncommon' | 'Rare' | 'Epic' | 'Legendary';
+  baseValue: number; // Gold Coins
+  baseChance: number; // 0-1
+  icon: string;
+  color: string;
+  oceanId: string; // The ocean this fish belongs to
+}
+
+export interface RodType {
+  id: string;
+  name: string;
+  multiplier: number;
+  cost: number; // Gold Coins
+  currency: 'gold';
+  specialFishId?: string; // Bonus for specific fish
+  specialBonus?: number;
+  craftingReq?: Record<string, number>; // fishId -> count
+}
+
+export interface FishMarketListing {
+  id: string;
+  sellerId: string;
+  itemType: 'fish' | 'rod';
+  itemId: string;
+  amount: number; // quantity (for fish) or 1 (for rod)
+  price: number; // Global CREDITS
+  timestamp: number;
+}
+
 export interface UserProfile {
   username: string;
   password?: string; // Optional because we might not want to expose it in UI often, but used for auth
@@ -45,6 +87,25 @@ export interface UserProfile {
   hasRainbowName?: boolean;
   profileMusic?: string; // DataURI of the MP3
   
+  // Abdou Clicker Persistence
+  abdouClickerState?: {
+      shares: number; // Prestige Currency
+      lifetimeAbdous: number; // For achievement tracking/prestige calc
+      inventory: Record<string, number>; // Current upgrades count
+      savedAbdous: number; // Current balance
+      lastSaveTime: number; // For offline progression calculation
+  };
+
+  // Fishing Game Persistence
+  fishingState?: {
+      gold: number; // Internal currency
+      inventory: Record<string, number>; // fishId -> count
+      rods: string[]; // Owned rod IDs
+      equippedRod: string;
+      totalCaught: number;
+      unlockedOceans: string[]; // Array of Ocean IDs
+  };
+
   cargo?: Record<string, number>; // Space Trader Inventory
   currentPlanet?: string; // Space Trader Location
   inventory: string[]; // Array of CosmeticItem IDs

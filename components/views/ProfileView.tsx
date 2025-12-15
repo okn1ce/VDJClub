@@ -10,6 +10,7 @@ const ProfileView: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const musicInputRef = useRef<HTMLInputElement>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [showPrestigeConfirm, setShowPrestigeConfirm] = useState(false);
 
   // Determine which profile to show
   const activeProfile = viewingProfile || user;
@@ -72,11 +73,10 @@ const ProfileView: React.FC = () => {
     if(isOwnProfile) fileInputRef.current?.click();
   };
 
-  const handlePrestige = () => {
-      if (window.confirm("Are you sure? This will reset your Credits to 0.")) {
-          const res = prestige();
-          setNotification(res.message);
-      }
+  const confirmPrestige = () => {
+      const res = prestige();
+      setNotification(res.message);
+      setShowPrestigeConfirm(false);
   };
 
   // Mock data for chart
@@ -94,11 +94,42 @@ const ProfileView: React.FC = () => {
   const nextRankName = PRESTIGE_RANKS[nextRankIndex];
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-8 animate-fade-in pb-24">
+    <div className="p-8 max-w-5xl mx-auto space-y-8 animate-fade-in pb-24 relative">
       
       {notification && (
           <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 border border-slate-700 px-6 py-3 rounded-full text-white font-bold shadow-2xl">
               {notification}
+          </div>
+      )}
+
+      {/* Prestige Confirmation Modal */}
+      {showPrestigeConfirm && (
+          <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-yellow-600/50 rounded-2xl p-8 max-w-md w-full shadow-2xl text-center">
+                  <div className="w-16 h-16 bg-yellow-900/30 rounded-full flex items-center justify-center mx-auto mb-4 border border-yellow-600">
+                      <ChevronsUp size={32} className="text-yellow-500" />
+                  </div>
+                  <h2 className="text-2xl font-black text-white mb-2">Confirm Prestige</h2>
+                  <p className="text-slate-400 mb-6">
+                      Are you sure you want to promote to <span className="text-yellow-400 font-bold">{nextRankName}</span>?
+                      <br/><br/>
+                      <span className="text-red-400 font-bold flex items-center justify-center gap-2"><AlertTriangle size={16}/> Warning: This will reset your Credits to 0.</span>
+                  </p>
+                  <div className="flex gap-4 justify-center">
+                      <button 
+                          onClick={() => setShowPrestigeConfirm(false)}
+                          className="px-6 py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white transition-colors"
+                      >
+                          Cancel
+                      </button>
+                      <button 
+                          onClick={confirmPrestige}
+                          className="px-6 py-3 rounded-xl bg-yellow-600 hover:bg-yellow-500 text-white font-bold shadow-lg transition-colors"
+                      >
+                          Confirm & Reset
+                      </button>
+                  </div>
+              </div>
           </div>
       )}
 
@@ -184,7 +215,7 @@ const ProfileView: React.FC = () => {
                   </p>
               </div>
               <button 
-                  onClick={handlePrestige}
+                  onClick={() => setShowPrestigeConfirm(true)}
                   disabled={activeProfile.credits < PRESTIGE_COST}
                   className={`relative z-10 px-6 py-3 rounded-xl font-bold uppercase tracking-wider transition-all
                      ${activeProfile.credits >= PRESTIGE_COST 

@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ViewState, UserProfile, CosmeticItem, UpgradeType, BettingEvent, Bet, BettingOption, Game, KothState, CanvasPixels, VaultState, VaultHistoryEntry, CoreState, CorePlayer, CoreTurret, FactionId, Sector, FactionWarState, AuctionState, AuctionItem } from '../types';
-import { DEFAULT_CLICKER_UPGRADES, DEFAULT_GAMES, DEFAULT_SHOP_ITEMS, DEFAULT_CORE_TURRETS, PRESTIGE_RANKS, RGB_NAME_COST, PROFILE_MUSIC_COST, PRESTIGE_COST } from '../constants';
+import { ViewState, UserProfile, CosmeticItem, UpgradeType, BettingEvent, Bet, BettingOption, Game, KothState, CanvasPixels, VaultState, VaultHistoryEntry, CoreState, CorePlayer, CoreTurret, FactionId, Sector, FactionWarState, AuctionState, AuctionItem, FishType, RodType, FishMarketListing } from '../types';
+import { DEFAULT_CLICKER_UPGRADES, DEFAULT_GAMES, DEFAULT_SHOP_ITEMS, DEFAULT_CORE_TURRETS, PRESTIGE_RANKS, RGB_NAME_COST, PROFILE_MUSIC_COST, PRESTIGE_COST, FISH_TYPES, ROD_TYPES, GOLD_EXCHANGE_RATE, OCEANS } from '../constants';
 import { db } from '../services/firebase';
 import { ref, onValue, set, update, remove, push, get, increment } from 'firebase/database';
 
@@ -34,7 +34,21 @@ interface GameContextType {
 
   // Clicker Game Data
   clickerUpgrades: UpgradeType[];
+  saveClickerProgress: (abdous: number, inventory: Record<string, number>, shares: number, lifetimeAbdous: number) => void;
   
+  // Fishing Game Functions
+  fishingListings: FishMarketListing[];
+  fishCast: (oceanId: string) => { success: boolean, fish?: FishType, message?: string };
+  fishSell: (fishId: string, amount: number) => { success: boolean, message: string };
+  fishBuyRod: (rodId: string) => { success: boolean, message: string };
+  fishCraftRod: (rodId: string) => { success: boolean, message: string };
+  fishEquipRod: (rodId: string) => { success: boolean, message: string };
+  fishExchangeGold: (amount: number) => { success: boolean, message: string };
+  fishCreateListing: (itemType: 'fish' | 'rod', itemId: string, amount: number, price: number) => { success: boolean, message: string };
+  fishBuyListing: (listingId: string) => { success: boolean, message: string };
+  fishCancelListing: (listingId: string) => { success: boolean, message: string };
+  fishUnlockOcean: (oceanId: string) => { success: boolean, message: string };
+
   // PMU Game Data & Functions
   bettingEvents: BettingEvent[];
   bets: Bet[];
@@ -150,6 +164,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [bettingEvents, setBettingEvents] = useState<BettingEvent[]>([]);
   const [bets, setBets] = useState<Bet[]>([]);
 
+  // Fishing
+  const [fishingListings, setFishingListings] = useState<FishMarketListing[]>([]);
+
   // KOTH
   const [kothState, setKothState] = useState<KothState | null>(null);
 
@@ -183,7 +200,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ...u,
             faction: u.faction ? normalizeFactionId(u.faction) : undefined,
             cargo: u.cargo || { fuel: 0, iron: 0, gold: 0, spice: 0 },
-            currentPlanet: u.currentPlanet || 'hydro'
+            currentPlanet: u.currentPlanet || 'hydro',
+            fishingState: {
+                gold: u.fishingState?.gold || 0,
+                inventory: u.fishingState?.inventory || {},
+                rods: u.fishingState?.rods || ['stick'],
+                equippedRod: u.fishingState?.equippedRod || 'stick',
+                totalCaught: u.fishingState?.totalCaught || 0,
+                unlockedOceans: u.fishingState?.unlockedOceans || ['starter']
+            }
         }));
         
         setAllUsers(usersList);
@@ -391,6 +416,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     });
 
+    // Listen to Fishing Market
+    const fishingMarketRef = ref(db, 'fishing/market');
+    const unsubFishingMarket = onValue(fishingMarketRef, (snapshot) => {
+        const data = snapshot.val();
+        setFishingListings(data ? Object.values(data) : []);
+    });
+
     return () => {
         unsubUsers();
         unsubGames();
@@ -406,6 +438,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unsubFactions();
         unsubFactionState();
         unsubAuction();
+        unsubFishingMarket();
     };
   }, []);
 
@@ -515,6 +548,29 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // --- Game Actions ---
+
+  const saveClickerProgress = (abdous: number, inventory: Record<string, number>, shares: number, lifetimeAbdous: number) => {
+      if (!user) return;
+      
+      const newState = {
+          shares,
+          lifetimeAbdous,
+          inventory,
+          savedAbdous: abdous,
+          lastSaveTime: Date.now()
+      };
+
+      const updated = {
+          ...user,
+          abdouClickerState: newState
+      };
+      
+      // Update local first for snappy UI
+      setUser(updated);
+      
+      // Sync to DB
+      update(ref(db, `users/${user.username}/abdouClickerState`), newState);
+  };
   
   const adminUpdateGame = (game: Game) => {
       update(ref(db, `games/${game.id}`), game);
@@ -626,6 +682,313 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       updateUserInDb(updated);
       return { success: true, message: "Profile Music Set!" };
+  };
+
+  // --- FISHING GAME LOGIC ---
+
+  const fishCast = (oceanId: string): { success: boolean, fish?: FishType, message?: string } => {
+      if (!user) return { success: false, message: "Not logged in" };
+      
+      const fishing = user.fishingState || { gold: 0, inventory: {}, rods: ['stick'], equippedRod: 'stick', totalCaught: 0, unlockedOceans: ['starter'] };
+      
+      if (!fishing.unlockedOceans.includes(oceanId)) {
+          return { success: false, message: "Ocean locked!" };
+      }
+
+      const currentRod = ROD_TYPES.find(r => r.id === fishing.equippedRod) || ROD_TYPES[0];
+      
+      // Calculate outcome based on Rod Multiplier and Fish Base Chance
+      let caughtFish: FishType | undefined = undefined;
+      const roll = Math.random();
+
+      // Check fish from hardest to easiest, filtered by OCEAN
+      const possibleFish = FISH_TYPES
+          .filter(f => f.oceanId === oceanId)
+          .sort((a,b) => a.baseChance - b.baseChance);
+
+      if (possibleFish.length === 0) return { success: false, message: "No fish here?" };
+
+      for (const fish of possibleFish) {
+          let chance = fish.baseChance * currentRod.multiplier;
+          // Apply specialized bonus
+          if (currentRod.specialFishId === fish.id) {
+               chance *= (currentRod.specialBonus || 1);
+          }
+          // Cap at 90%
+          chance = Math.min(0.9, chance);
+
+          if (Math.random() < chance) {
+              caughtFish = fish;
+              break;
+          }
+      }
+
+      if (!caughtFish) {
+          return { success: false, message: "Nothing bit..." };
+      }
+
+      // Update Inventory
+      const newInventory = { ...(fishing.inventory || {}) };
+      newInventory[caughtFish.id] = (newInventory[caughtFish.id] || 0) + 1;
+
+      const newState = {
+          ...fishing,
+          inventory: newInventory,
+          totalCaught: (fishing.totalCaught || 0) + 1
+      };
+
+      const updatedUser = { ...user, fishingState: newState };
+      updateUserInDb(updatedUser);
+
+      return { success: true, fish: caughtFish };
+  };
+
+  const fishUnlockOcean = (oceanId: string): { success: boolean, message: string } => {
+      if (!user || !user.fishingState) return { success: false, message: "Error" };
+      if (user.fishingState.unlockedOceans.includes(oceanId)) return { success: false, message: "Already unlocked" };
+
+      const ocean = OCEANS.find(o => o.id === oceanId);
+      if (!ocean) return { success: false, message: "Invalid ocean" };
+
+      if (user.fishingState.gold < ocean.cost) return { success: false, message: "Not enough gold" };
+
+      const newState = {
+          ...user.fishingState,
+          gold: user.fishingState.gold - ocean.cost,
+          unlockedOceans: [...user.fishingState.unlockedOceans, oceanId]
+      };
+
+      updateUserInDb({ ...user, fishingState: newState });
+      return { success: true, message: `Unlocked ${ocean.name}!` };
+  };
+
+  const fishSell = (fishId: string, amount: number): { success: boolean, message: string } => {
+      if (!user || !user.fishingState) return { success: false, message: "Error" };
+      const inventory = user.fishingState.inventory || {};
+      const current = inventory[fishId] || 0;
+      if (current < amount) return { success: false, message: "Not enough fish" };
+
+      const fishType = FISH_TYPES.find(f => f.id === fishId);
+      if (!fishType) return { success: false, message: "Invalid fish" };
+
+      const earnings = fishType.baseValue * amount;
+      
+      const newInventory = { ...inventory };
+      newInventory[fishId] -= amount;
+      if (newInventory[fishId] <= 0) delete newInventory[fishId];
+
+      const newState = {
+          ...user.fishingState,
+          gold: (user.fishingState.gold || 0) + earnings,
+          inventory: newInventory
+      };
+
+      updateUserInDb({ ...user, fishingState: newState });
+      return { success: true, message: `Sold ${amount} ${fishType.name} for ${earnings} Gold` };
+  };
+
+  const fishBuyRod = (rodId: string): { success: boolean, message: string } => {
+      if (!user || !user.fishingState) return { success: false, message: "Error" };
+      if (user.fishingState.rods.includes(rodId)) return { success: false, message: "Already owned" };
+
+      const rod = ROD_TYPES.find(r => r.id === rodId);
+      if (!rod) return { success: false, message: "Invalid rod" };
+      if (rod.craftingReq) return { success: false, message: "Must be crafted" };
+      
+      if (user.fishingState.gold < rod.cost) return { success: false, message: "Not enough gold" };
+
+      const newState = {
+          ...user.fishingState,
+          gold: user.fishingState.gold - rod.cost,
+          rods: [...user.fishingState.rods, rodId]
+      };
+
+      updateUserInDb({ ...user, fishingState: newState });
+      return { success: true, message: `Bought ${rod.name}!` };
+  };
+
+  const fishCraftRod = (rodId: string): { success: boolean, message: string } => {
+      if (!user || !user.fishingState) return { success: false, message: "Error" };
+      if (user.fishingState.rods.includes(rodId)) return { success: false, message: "Already owned" };
+
+      const rod = ROD_TYPES.find(r => r.id === rodId);
+      if (!rod || !rod.craftingReq) return { success: false, message: "Cannot craft" };
+      
+      if (user.fishingState.gold < rod.cost) return { success: false, message: "Not enough gold for assembly" };
+
+      // Check Fish Requirements
+      const inventory = user.fishingState.inventory || {};
+      for (const [reqId, reqCount] of Object.entries(rod.craftingReq)) {
+          if ((inventory[reqId] || 0) < reqCount) {
+              return { success: false, message: `Missing ingredients` };
+          }
+      }
+
+      // Deduct ingredients
+      const newInventory = { ...inventory };
+      for (const [reqId, reqCount] of Object.entries(rod.craftingReq)) {
+          newInventory[reqId] -= reqCount;
+          if (newInventory[reqId] <= 0) delete newInventory[reqId];
+      }
+
+      const newState = {
+          ...user.fishingState,
+          gold: user.fishingState.gold - rod.cost,
+          inventory: newInventory,
+          rods: [...user.fishingState.rods, rodId]
+      };
+
+      updateUserInDb({ ...user, fishingState: newState });
+      return { success: true, message: `Crafted ${rod.name}!` };
+  };
+
+  const fishEquipRod = (rodId: string): { success: boolean, message: string } => {
+       if (!user || !user.fishingState) return { success: false, message: "Error" };
+       if (!user.fishingState.rods.includes(rodId)) return { success: false, message: "Rod not owned" };
+
+       updateUserInDb({ ...user, fishingState: { ...user.fishingState, equippedRod: rodId } });
+       return { success: true, message: "Equipped!" };
+  };
+
+  const fishExchangeGold = (amount: number): { success: boolean, message: string } => {
+      if (!user || !user.fishingState) return { success: false, message: "Error" };
+      if (user.fishingState.gold < amount) return { success: false, message: "Not enough gold" };
+
+      // Rate: 100k Gold = 1 Credit
+      const credits = Math.floor(amount / GOLD_EXCHANGE_RATE);
+      if (credits <= 0) return { success: false, message: `Need ${GOLD_EXCHANGE_RATE.toLocaleString()} Gold minimum` };
+
+      const actualGoldCost = credits * GOLD_EXCHANGE_RATE;
+
+      const newState = {
+          ...user.fishingState,
+          gold: user.fishingState.gold - actualGoldCost
+      };
+
+      const updatedUser = { 
+          ...user, 
+          credits: user.credits + credits,
+          fishingState: newState,
+          stats: { ...user.stats, totalEarnings: user.stats.totalEarnings + credits }
+      };
+
+      updateUserInDb(updatedUser);
+      return { success: true, message: `Exchanged for ${credits} Credits` };
+  };
+
+  // --- FISHING P2P MARKET LOGIC ---
+  const fishCreateListing = (itemType: 'fish' | 'rod', itemId: string, amount: number, price: number): { success: boolean, message: string } => {
+      if (!user || !user.fishingState) return { success: false, message: "Error" };
+      if (price <= 0 || amount <= 0) return { success: false, message: "Invalid amount/price" };
+
+      const inventory = user.fishingState.inventory || {};
+
+      // Verify Ownership
+      if (itemType === 'fish') {
+          if ((inventory[itemId] || 0) < amount) return { success: false, message: "Not enough fish" };
+      } else {
+          // Rods are unique in this context, usually user keeps one, but if we allow selling rods, we must remove it from rods array
+          if (!user.fishingState.rods.includes(itemId)) return { success: false, message: "Rod not owned" };
+          // Don't sell equipped rod
+          if (user.fishingState.equippedRod === itemId) return { success: false, message: "Unequip first" };
+          // Don't sell starter rod
+          if (itemId === 'stick') return { success: false, message: "Cannot sell starter rod" };
+      }
+
+      const updates: Record<string, any> = {};
+      const listingId = `list_${Date.now()}`;
+      
+      const newListing: FishMarketListing = {
+          id: listingId,
+          sellerId: user.username,
+          itemType,
+          itemId,
+          amount,
+          price, // Credits
+          timestamp: Date.now()
+      };
+
+      // Deduct item
+      if (itemType === 'fish') {
+           const newInventory = { ...inventory };
+           newInventory[itemId] -= amount;
+           if (newInventory[itemId] <= 0) delete newInventory[itemId];
+           updates[`users/${user.username}/fishingState/inventory`] = newInventory;
+      } else {
+           const newRods = user.fishingState.rods.filter(r => r !== itemId);
+           updates[`users/${user.username}/fishingState/rods`] = newRods;
+      }
+
+      updates[`fishing/market/${listingId}`] = newListing;
+
+      update(ref(db), updates);
+      return { success: true, message: "Listed on Market" };
+  };
+
+  const fishBuyListing = (listingId: string): { success: boolean, message: string } => {
+      if (!user || !user.fishingState) return { success: false, message: "Error" };
+      
+      const listing = fishingListings.find(l => l.id === listingId);
+      if (!listing) return { success: false, message: "Listing not found" };
+      if (listing.sellerId === user.username) return { success: false, message: "Cannot buy own listing" };
+      
+      if (user.credits < listing.price) return { success: false, message: "Not enough Credits" };
+
+      const updates: Record<string, any> = {};
+      
+      // Transfer Credits
+      updates[`users/${user.username}/credits`] = user.credits - listing.price;
+      
+      // We need to fetch seller to give them credits. 
+      // Optimization: We assume allUsers is up to date, but risky for transactional integrity. 
+      // For simplicity in this context, we update blindly or assume success.
+      // Better: Transaction. Here we just update.
+      const seller = allUsers.find(u => u.username === listing.sellerId);
+      if (seller) {
+          updates[`users/${seller.username}/credits`] = seller.credits + listing.price;
+      } else {
+          // Seller might be gone, credits burn? Or just push to their DB path
+          updates[`users/${listing.sellerId}/credits`] = increment(listing.price);
+      }
+
+      // Give item to Buyer
+      if (listing.itemType === 'fish') {
+           const currentCount = user.fishingState.inventory?.[listing.itemId] || 0;
+           updates[`users/${user.username}/fishingState/inventory/${listing.itemId}`] = currentCount + listing.amount;
+      } else {
+           if (user.fishingState.rods.includes(listing.itemId)) return { success: false, message: "Already own this rod" };
+           const newRods = [...user.fishingState.rods, listing.itemId];
+           updates[`users/${user.username}/fishingState/rods`] = newRods;
+      }
+
+      // Remove Listing
+      updates[`fishing/market/${listingId}`] = null;
+
+      update(ref(db), updates);
+      return { success: true, message: "Purchase successful!" };
+  };
+
+  const fishCancelListing = (listingId: string): { success: boolean, message: string } => {
+      if (!user) return { success: false, message: "Error" };
+      
+      const listing = fishingListings.find(l => l.id === listingId);
+      if (!listing) return { success: false, message: "Listing not found" };
+      if (listing.sellerId !== user.username) return { success: false, message: "Not your listing" };
+
+      const updates: Record<string, any> = {};
+
+      // Refund Item
+      if (listing.itemType === 'fish') {
+           const currentCount = user.fishingState?.inventory?.[listing.itemId] || 0;
+           updates[`users/${user.username}/fishingState/inventory/${listing.itemId}`] = currentCount + listing.amount;
+      } else {
+           const newRods = [...(user.fishingState?.rods || []), listing.itemId];
+           updates[`users/${user.username}/fishingState/rods`] = newRods;
+      }
+
+      updates[`fishing/market/${listingId}`] = null;
+      update(ref(db), updates);
+      return { success: true, message: "Listing cancelled" };
   };
 
   // --- PMU Actions ---
@@ -1105,6 +1468,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       adminAddShopItem,
       adminDeleteShopItem,
       clickerUpgrades,
+      saveClickerProgress,
+      // Fishing
+      fishingListings,
+      fishCast,
+      fishSell,
+      fishBuyRod,
+      fishCraftRod,
+      fishEquipRod,
+      fishExchangeGold,
+      fishCreateListing,
+      fishBuyListing,
+      fishCancelListing,
+      fishUnlockOcean,
       bettingEvents,
       bets,
       createBettingEvent,
